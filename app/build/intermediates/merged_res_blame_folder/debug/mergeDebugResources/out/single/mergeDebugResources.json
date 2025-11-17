@@ -1,0 +1,338 @@
+[
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_rotate.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_rotate.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_jjack.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/jjack.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/xml_data_extraction_rules.xml.flat",
+        "source": "com.blesense.app-main-95:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_data_logger.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/data_logger.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_refresh.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/refresh.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-hdpi_ic_launcher.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-hdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_open_box.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/open_box.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_back_arrow.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_back_arrow.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_eyes.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/eyes.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_visibility.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/visibility.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_error.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/error.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/raw_bgmusic.mp3.flat",
+        "source": "com.blesense.app-main-95:/raw/bgmusic.mp3"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_lock.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/lock.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_gamepad.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/gamepad.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_robo_car_icon.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/robo_car_icon.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/font_helvetica.ttf.flat",
+        "source": "com.blesense.app-main-95:/font/helvetica.ttf"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_arrow_back.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/arrow_back.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.blesense.app-main-95:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_motor.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_motor.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_hela.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/hela.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_bg_remove_ble.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/bg_remove_ble.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_google_g.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/google_g.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xxhdpi_ic_launcher.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xxhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xxxhdpi_ic_launcher_round.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xxxhdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_landscape.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_landscape.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-hdpi_ic_launcher_round.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-hdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/xml_network_security_config.xml.flat",
+        "source": "com.blesense.app-main-95:/xml/network_security_config.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_pressure_sensor.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_pressure_sensor.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logo3.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logo3.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_eyes_visibility.jpeg.flat",
+        "source": "com.blesense.app-main-95:/drawable/eyes_visibility.jpeg"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/font_fonts.xml.flat",
+        "source": "com.blesense.app-main-95:/font/fonts.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xhdpi_ic_launcher_round.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xhdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logoble.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logoble.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_facebook_f_.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/facebook_f_.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_settings.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/settings.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_portrait.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_portrait.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_search.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/search.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ble_games.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ble_games.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_racing_bg7.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/racing_bg7.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logofinallast.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logofinallast.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/raw_yayy.mp3.flat",
+        "source": "com.blesense.app-main-95:/raw/yayy.mp3"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_google.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/google.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_soundon.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/soundon.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/xml_backup_rules.xml.flat",
+        "source": "com.blesense.app-main-95:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/raw_wrong.mp3.flat",
+        "source": "com.blesense.app-main-95:/raw/wrong.mp3"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_facebook_f.webp.flat",
+        "source": "com.blesense.app-main-95:/drawable/facebook_f.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_iron_man.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/iron_man.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_facebook.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/facebook.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logofinal.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logofinal.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xxxhdpi_ic_launcher.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xxxhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logoblelastfinal.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logoblelastfinal.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_visibility_on.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/visibility_on.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_sun.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/sun.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-mdpi_ic_launcher.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-mdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_bg_remove_2.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/bg_remove_2.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_soundoff.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/soundoff.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.blesense.app-main-95:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/raw_nuclear_alarm.mp3.flat",
+        "source": "com.blesense.app-main-95:/raw/nuclear_alarm.mp3"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_waterquality.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/waterquality.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_invisible.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/invisible.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_bluetooth.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_bluetooth.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xhdpi_ic_launcher.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xhdpi/ic_launcher.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_soil3.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/soil3.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_horn.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_horn.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_bluetooth.xml.flat",
+        "source": "com.blesense.app-main-95:/drawable/bluetooth.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/raw_beep.mp3.flat",
+        "source": "com.blesense.app-main-95:/raw/beep.mp3"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_icons_leaf.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/icons_leaf.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/font_helvetica_bold.ttf.flat",
+        "source": "com.blesense.app-main-95:/font/helvetica_bold.ttf"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_jack.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/jack.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_graph.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/graph.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_logoble_round.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/logoble_round.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_turbo.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_turbo.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_switch.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_switch.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_accelerometer.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_accelerometer.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-mdpi_ic_launcher_round.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-mdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_home.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/home.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/mipmap-xxhdpi_ic_launcher_round.webp.flat",
+        "source": "com.blesense.app-main-95:/mipmap-xxhdpi/ic_launcher_round.webp"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/xml_provider_paths.xml.flat",
+        "source": "com.blesense.app-main-95:/xml/provider_paths.xml"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_visibility_off.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/visibility_off.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_party_popper_.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/party_popper_.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_ic_thermometer.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/ic_thermometer.png"
+    },
+    {
+        "merged": "com.blesense.app-debug-93:/drawable_show.png.flat",
+        "source": "com.blesense.app-main-95:/drawable/show.png"
+    }
+]
