@@ -2890,9 +2890,6 @@ drawable abc_textfield_search_activated_mtrl_alpha
 drawable abc_textfield_search_default_mtrl_alpha
 drawable abc_textfield_search_material
 drawable abc_vector_test
-drawable admob_close_button_black_circle_white_cross
-drawable admob_close_button_white_circle_black_cross
-drawable admob_close_button_white_cross
 drawable arrow_back
 drawable avd_hide_password
 drawable avd_show_password
@@ -3240,6 +3237,7 @@ id disableHome
 id disablePostScroll
 id disableScroll
 id disjoint
+id download_button
 id dragDown
 id dragEnd
 id dragLeft
@@ -3408,6 +3406,18 @@ id parent_matrix
 id password_toggle
 id path
 id pathRelative
+id payloadAirPressureTextView
+id payloadCounter1TextView
+id payloadCounter2TextView
+id payloadHumidityTextView
+id payloadRadiationTextView
+id payloadRainTextView
+id payloadRecyclerView
+id payloadTemperatureTextView
+id payloadTimestampTextView
+id payloadVisibilityTextView
+id payloadWindDirectionTextView
+id payloadWindSpeedTextView
 id peekHeight
 id percent
 id pin
@@ -3419,6 +3429,7 @@ id progress_circular
 id progress_horizontal
 id radio
 id ratio
+id rawDataTextView
 id rectangles
 id report_drawn
 id reverseSawtooth
@@ -3432,6 +3443,7 @@ id save_non_transition_alpha
 id save_overlay_view
 id sawtooth
 id scale
+id scan_button
 id screen
 id scroll
 id scrollIndicatorDown
@@ -3494,6 +3506,7 @@ id startToEnd
 id startVertical
 id staticLayout
 id staticPostLayout
+id statusTextView
 id stop
 id stretch
 id submenuarrow
@@ -3678,6 +3691,7 @@ layout abc_search_dropdown_item_icons_2line
 layout abc_search_view
 layout abc_select_dialog_material
 layout abc_tooltip
+layout activity_data_logger
 layout browser_actions_context_menu_page
 layout browser_actions_context_menu_row
 layout custom_dialog
@@ -3698,6 +3712,7 @@ layout design_text_input_end_icon
 layout design_text_input_start_icon
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
+layout item_payload
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
 layout m3_alert_dialog_title
@@ -3766,11 +3781,9 @@ plurals mtrl_badge_content_description
 raw beep
 raw bgmusic
 raw firebase_common_keep
-raw keep_cronet_api
 raw nuclear_alarm
 raw wrong
 raw yayy
-string CronetProviderClassName
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description
@@ -3820,7 +3833,6 @@ string character_counter_content_description
 string character_counter_overflowed_content_description
 string character_counter_pattern
 string clear_text_end_icon_content_description
-string close_button
 string close_drawer
 string close_sheet
 string common_google_play_services_enable_button
@@ -3958,12 +3970,6 @@ string material_timepicker_minute
 string material_timepicker_pm
 string material_timepicker_select_time
 string material_timepicker_text_input_mode_description
-string mraid_alert_accept
-string mraid_alert_decline
-string mraid_allow_calendar_event
-string mraid_allow_store_picture
-string mraid_create_calendar_event
-string mraid_save_image
 string mtrl_badge_numberless_content_description
 string mtrl_checkbox_button_icon_path_checked
 string mtrl_checkbox_button_icon_path_group_name
@@ -4026,9 +4032,6 @@ string mtrl_switch_track_decoration_path
 string mtrl_switch_track_path
 string mtrl_timepicker_cancel
 string mtrl_timepicker_confirm
-string native_body
-string native_headline
-string native_media_view
 string navigation_menu
 string not_selected
 string password_toggle_content_description
@@ -4054,7 +4057,6 @@ string status_bar_notification_info_overflow
 string switch_role
 string tab
 string template_percent
-string test_ad
 string tooltip_description
 string tooltip_label
 style AlertDialog_AppCompat

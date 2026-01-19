@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.blesense.app-mergeDebugResources-91:/values-v27/values-v27.xml",
+            "outputFile": "com.blesense.app-mergeDebugResources-85:/values-v27/values-v27.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\DELL\\.gradle\\caches\\8.13\\transforms\\62a858371e8a659d76814454c44acb7e\\transformed\\core-splashscreen-1.0.0\\res\\values-v27\\values-v27.xml",
+                    "source": "C:\\Users\\DELL\\.gradle\\caches\\8.13\\transforms\\55b6ba6a34f3dbe8b769640e30df0fdf\\transformed\\core-splashscreen-1.0.0\\res\\values-v27\\values-v27.xml",
                     "from": {
                         "startLines": "2,3,4,7",
                         "startColumns": "4,4,4,4",

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.blesense.app"
-    android:versionCode="3"
-    android:versionName="1.0" >
+    android:versionCode="9"
+    android:versionName="1.1" >
 
     <uses-sdk
         android:minSdkVersion="29"
@@ -21,46 +21,6 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <uses-permission android:name="android.permission.READ_BASIC_PHONE_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_TOPICS" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" />
-    <uses-permission android:name="android.permission.ACCESS_ADSERVICES_ATTRIBUTION" />
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" /> <!-- Android package visibility setting -->
-    <queries>
-
-        <!-- For browser content -->
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-
-            <category android:name="android.intent.category.BROWSABLE" />
-
-            <data android:scheme="https" />
-        </intent>
-        <!-- End of browser content -->
-        <!-- For CustomTabsService -->
-        <intent>
-            <action android:name="android.support.customtabs.action.CustomTabsService" />
-        </intent>
-        <!-- End of CustomTabsService -->
-        <!-- For MRAID capabilities -->
-        <intent>
-            <action android:name="android.intent.action.INSERT" />
-
-            <data android:mimeType="vnd.android.cursor.dir/event" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-
-            <data android:scheme="sms" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.DIAL" />
-
-            <data android:path="tel:" />
-        </intent>
-        <!-- End of MRAID capabilities -->
-    </queries>
-
     <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -77,7 +37,7 @@
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:debuggable="true"
-        android:extractNativeLibs="false"
+        android:extractNativeLibs="true"
         android:fullBackupContent="@xml/backup_rules"
         android:hardwareAccelerated="true"
         android:icon="@mipmap/ic_launcher"
@@ -119,11 +79,6 @@
             android:configChanges="orientation|screenSize"
             android:exported="false"
             android:screenOrientation="landscape" />
-        <activity
-            android:name="com.google.android.libraries.ads.mobile.sdk.common.AdActivity"
-            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
-            android:exported="false"
-            android:theme="@android:style/Theme.Translucent" />
         <activity
             android:name="androidx.compose.ui.tooling.PreviewActivity"
             android:exported="true" />
@@ -348,10 +303,6 @@
                 <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS" />
             </intent-filter>
         </receiver>
-
-        <uses-library
-            android:name="android.ext.adservices"
-            android:required="false" />
 
         <service
             android:name="androidx.room.MultiInstanceInvalidationService"

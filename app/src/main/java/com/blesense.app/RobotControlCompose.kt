@@ -1185,6 +1185,7 @@ object BluetoothConnectionManager {
     }
 }
 
+@SuppressLint("ViewModelConstructorInComposable")
 @Preview(showBackground = true)
 @Composable
 fun PreviewRobotControlScreen() {

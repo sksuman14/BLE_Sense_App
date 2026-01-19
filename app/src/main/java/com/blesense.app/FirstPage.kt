@@ -29,11 +29,6 @@ import kotlinx.coroutines.delay
 // ---------------------------------------------------------------------
 //  ONE SINGLE Helvetica definition – replace with your real font if you have it
 // ---------------------------------------------------------------------
-//private val hel RnveticaFont = FontFamily.Default   // <-- change to your custom FontFamily
-
-// ---------------------------------------------------------------------
-//  ENGLISH-ONLY SCREEN (no translation, no managers)
-// ---------------------------------------------------------------------
 @Composable
 fun AnimatedFirstScreen(
     onNavigateToLogin: () -> Unit,

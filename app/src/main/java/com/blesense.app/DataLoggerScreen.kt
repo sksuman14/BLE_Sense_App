@@ -1,12 +1,25 @@
 package com.blesense.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.BluetoothLeAdvertiser
+import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import com.blesense.app.BluetoothScanViewModel
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,251 +32,554 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.text.style.TextOverflow
+import kotlin.math.max
+import java.util.Locale
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.max
+import kotlin.math.min
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.composed
+import androidx.compose.foundation.lazy.rememberLazyListState
 
-// Composable function for the DataLoggerScreen, responsible for displaying data from a Bluetooth Data Logger device
+// Class to send BLE commands using advertising (non-connectable)
+class BleCommandSender(private val context: Context) {
+    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+    private val adapter: BluetoothAdapter? = bluetoothManager.adapter
+    private val advertiser: BluetoothLeAdvertiser? = adapter?.bluetoothLeAdvertiser
+
+    private val companyId = 0x0059  // Nordic default manufacturer ID
+
+    private var currentCallback: AdvertiseCallback? = null
+
+    // Check if app has BLE advertising permission (required for Android 12+)
+    private fun hasAdvertisePermission(): Boolean {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) ==
+                    PackageManager.PERMISSION_GRANTED
+        } else true
+    }
+
+    // Send a 2-byte command via BLE advertising
+    fun sendCommand(command: ByteArray, durationMs: Long = 5000) {
+        // Check permissions and validate command length
+        if (!hasAdvertisePermission() || advertiser == null || command.size != 2) return
+
+        stopAdvertising()
+
+        // Create advertising data with manufacturer-specific data
+        val data = AdvertiseData.Builder()
+            .addManufacturerData(companyId, command)
+            .setIncludeDeviceName(false)
+            .setIncludeTxPowerLevel(false)
+            .build()
+
+        // Configure advertising settings for fast, non-connectable advertising
+        val settings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setConnectable(false)
+            .setTimeout(0)
+            .build()
+
+        currentCallback = object : AdvertiseCallback() {}
+
+        try {
+            // Start advertising the command
+            advertiser.startAdvertising(settings, data, currentCallback)
+
+            // Stop advertising after specified duration
+            MainScope().launch {
+                delay(durationMs)
+                stopAdvertising()
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+    }
+
+    // Stop current advertising session
+    fun stopAdvertising() {
+        if (!hasAdvertisePermission()) return
+        try {
+            currentCallback?.let {
+                advertiser?.stopAdvertising(it)
+                currentCallback = null
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+    }
+}
+
+// Main screen for DataLogger device interaction
 @SuppressLint("MissingPermission")
 @Composable
 fun DataLoggerScreen(
-    deviceAddress: String, // MAC address of the target Bluetooth device
-    deviceName: String, // Name of the Bluetooth device
-    navController: NavController, // Navigation controller for handling back navigation
-    deviceId: String, // Unique identifier for the device
-    viewModel: BluetoothScanViewModel<Any> = viewModel(factory = BluetoothScanViewModelFactory(LocalContext.current)) // ViewModel for managing Bluetooth scanning and data
+    deviceAddress: String,
+    deviceName: String,
+    navController: NavController,
+    deviceId: String,
+    viewModel: BluetoothScanViewModel<Any> = viewModel(factory = BluetoothScanViewModelFactory(LocalContext.current))
 ) {
-    // Obtain the current Android context for accessing Activity and other resources
     val context = LocalContext.current
-    // Cast context to Activity for lifecycle-aware operations
     val activity = context as? Activity
-    // Create a coroutine scope for launching asynchronous tasks
     val coroutineScope = rememberCoroutineScope()
-    // Observe the dark mode state from ThemeManager to adjust UI styling
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
-    // State to track the currently connected Bluetooth device, initially null
+    // Create command sender for BLE communication
+    val commandSender = remember { BleCommandSender(context) }
+
+    // Permission launcher for Android 12+ BLE permissions
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { }
+
+    // Setup permissions and start BLE scanning when screen loads
+    LaunchedEffect(Unit) {
+        // Check and request BLE permissions for Android 12+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val permissions = arrayOf(
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
+            )
+            val missing = permissions.filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+            }
+            if (missing.isNotEmpty()) {
+                permissionLauncher.launch(missing.toTypedArray())
+            }
+        }
+
+        // Start continuous BLE scanning
+        val act = context as? Activity
+        if (act != null && !act.isFinishing && !act.isDestroyed) {
+            viewModel.startContinuousScan(act)
+        }
+    }
+
+    // State variables for UI control
     var connectedDevice by remember { mutableStateOf<BluetoothScanViewModel.BluetoothDevice?>(null) }
-    // State to indicate whether a refresh operation is in progress
     var isRefreshing by remember { mutableStateOf(false) }
-    // Observe the packet history from the ViewModel, containing received Data Logger packets
+    var isGettingData by remember { mutableStateOf(false) }
+    var isResetting by remember { mutableStateOf(false) }
+    var lastPacketCount by remember { mutableIntStateOf(0) }
+
+    // Collect packet history from ViewModel
     val packetHistory by viewModel.dataLoggerPacketHistory.collectAsState()
-    // Observe the list of discovered Bluetooth devices
+
+    // Calculate lost packet IDs by comparing received IDs with expected sequence
+    val lostPacketIds = remember(packetHistory) {
+        val ids = mutableListOf<Int>()
+
+        packetHistory.forEach { item ->
+            if (item is BluetoothScanViewModel.SensorData.DataLoggerData) {
+                ids.add(item.currentPacketId)
+            }
+        }
+
+        if (ids.size < 2) {
+            emptyList<Int>()
+        } else {
+            val presentIds = ids.toSet()
+            val maxId = ids.maxOrNull() ?: 0
+            val minId = ids.minOrNull() ?: 0
+
+            // Find missing IDs in the sequence
+            (minId..maxId).filter { it !in presentIds }
+        }
+    }
+
+    // Collect discovered devices from ViewModel
     val devices by viewModel.devices.collectAsState()
 
-    // Filter devices to find Data Logger devices based on name and address
+    // Find the current DataLogger device
     val currentDevice by remember(devices, deviceAddress) {
         derivedStateOf {
-            // First, try to find a device matching both the address and "DataLogger" in its name
             devices.find {
                 it.address == deviceAddress && (
                         it.name.contains("DataLogger", ignoreCase = true) ||
                                 it.name.contains("Data Logger", ignoreCase = true)
                         )
             } ?: devices.find {
-                // Fallback to any device with "DataLogger" in its name if no exact match is found
                 it.name.contains("DataLogger", ignoreCase = true) ||
                         it.name.contains("Data Logger", ignoreCase = true)
             }
         }
     }
 
-    // Automatically connect to a Data Logger device when one is found in the devices list
+    // Update connected device when devices list changes
     LaunchedEffect(devices) {
-        // Search for a device with "DataLogger" in its name
         val dataLoggerDevice = devices.find {
             it.name.contains("DataLogger", ignoreCase = true) ||
                     it.name.contains("Data Logger", ignoreCase = true)
         }
-        // Update the connectedDevice state if a Data Logger device is found
         dataLoggerDevice?.let { connectedDevice = it }
     }
 
-    // Ensure the Bluetooth scan is stopped when the composable is disposed to prevent resource leaks
+    // Clean up BLE scanning when navigating away
     DisposableEffect(navController) {
         onDispose { viewModel.stopScan() }
     }
 
-    // Define the background gradient based on dark mode state
-    val backgroundGradient = if (isDarkMode) {
-        Brush.verticalGradient(listOf(Color(0xFF1E1E1E), Color(0xFF424242))) // Dark mode gradient (dark gray shades)
-    } else {
-        Brush.verticalGradient(listOf(Color(0xFF0A74DA), Color(0xFFADD8E6))) // Light mode gradient (blue shades)
+    // Stop advertising when new data arrives
+    LaunchedEffect(packetHistory.size) {
+        if (packetHistory.size > lastPacketCount) {
+            commandSender.stopAdvertising()
+            isGettingData = false
+            isResetting = false
+        }
     }
-    // Define the text color for UI elements
+
+    // Reset state when packet history becomes empty
+    LaunchedEffect(packetHistory.isEmpty()) {
+        if (packetHistory.isEmpty()) {
+            isResetting = false
+        }
+    }
+
+    // Timeout for data collection and reset operations
+    LaunchedEffect(isGettingData, isResetting) {
+        if (isGettingData || isResetting) {
+            delay(40000)
+            isGettingData = false
+            isResetting = false
+        }
+    }
+
+    // Theme-aware background gradient
+    val backgroundGradient = if (isDarkMode) {
+        Brush.verticalGradient(listOf(Color(0xFF1E1E1E), Color(0xFF424242)))
+    } else {
+        Brush.verticalGradient(listOf(Color(0xFF0A74DA), Color(0xFFADD8E6)))
+    }
+
     val textColor = Color.White
 
-    // Main UI container with a gradient background and system bar padding
+    // Main screen layout
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundGradient) // Apply the gradient background
-            .padding(WindowInsets.systemBars.asPaddingValues()), // Adjust for system bars (status/navigation)
+            .background(backgroundGradient)
+            .padding(WindowInsets.systemBars.asPaddingValues()),
         contentAlignment = Alignment.Center
     ) {
-        // Main column layout for organizing UI elements
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp), // Add 16dp padding around the content
+                .padding(16.dp),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header row containing back button, title, and refresh button
+            // Header with back button, title, and refresh button
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween, // Distribute elements across the row
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Back button to stop scanning and navigate back
                 IconButton(onClick = {
-                    viewModel.stopScan() // Stop any ongoing Bluetooth scan
-                    navController.popBackStack() // Navigate back to the previous screen
+                    viewModel.stopScan()
+                    navController.popBackStack()
                 }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back", // Accessibility description
-                        tint = textColor // White icon color
-                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = textColor)
                 }
-
-                // Title text for the screen
                 Text(
                     text = "Data Logger Data",
-                    fontFamily = helveticaFont, // Use custom Helvetica font
+                    fontFamily = helveticaFont,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = textColor // White text color
+                    color = textColor
                 )
-
-                // Refresh button to rescan for Bluetooth devices
                 IconButton(
                     onClick = {
                         coroutineScope.launch {
-                            // Prevent multiple refresh operations from running concurrently
                             if (isRefreshing) return@launch
-                            isRefreshing = true // Set refreshing state to true
-
+                            isRefreshing = true
                             try {
-                                // Stop any ongoing scan to avoid conflicts
                                 viewModel.stopScan()
-                                delay(300) // Brief delay to ensure scan stops properly
-
-                                // Restart scan only if the Activity context is valid
+                                delay(1000)
                                 val act = context as? Activity
                                 if (act != null && !act.isFinishing && !act.isDestroyed) {
-                                    viewModel.startScan(act) // Start a new Bluetooth scan
-                                } else {
-                                    println("⚠️ Skipping scan restart: invalid Activity context")
+                                    viewModel.startScan(act)
                                 }
-
-                                // Wait 2 seconds to allow devices to be discovered
-                                delay(2000)
+                                delay(15000)
                             } catch (e: Exception) {
-                                // Log any errors during the refresh process
-                                println("⚠️ Refresh crashed: ${e.message}")
+                                println("Refresh error: ${e.message}")
                             } finally {
-                                isRefreshing = false // Reset refreshing state
+                                isRefreshing = false
                             }
                         }
                     },
-                    enabled = !isRefreshing // Disable button while refreshing
+                    enabled = !isRefreshing
                 ) {
                     if (isRefreshing) {
-                        // Show a progress indicator during refresh
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = textColor, // White progress indicator
-                            strokeWidth = 2.dp
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = textColor, strokeWidth = 2.dp)
                     } else {
-                        // Show refresh icon when not refreshing
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Refresh", // Accessibility description
-                            tint = textColor // White icon color
-                        )
+                        Icon(Icons.Default.Refresh, "Refresh", tint = textColor)
                     }
                 }
             }
 
-            // Add spacing below the header
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Display device information (address or fallback to provided address)
+            // Device information display
             val displayDevice = connectedDevice ?: currentDevice
-            Text(
-                text = "Device: Data Logger (${displayDevice?.address ?: deviceAddress})",
-                fontSize = 16.sp,
-                color = textColor, // White text color
-                fontWeight = FontWeight.Bold
-            )
-
-            // Display node ID (hardcoded as "Data Logger")
-            Text(
-                text = "Node ID: Data Logger",
-                fontSize = 16.sp,
-                color = textColor, // White text color
-                fontWeight = FontWeight.Medium
-            )
+            Text("Device: Data Logger (${displayDevice?.address ?: deviceAddress})",
+                fontSize = 16.sp, color = textColor, fontWeight = FontWeight.Bold)
+            Text("Node ID: Data Logger", fontSize = 16.sp, color = textColor, fontWeight = FontWeight.Medium)
 
             // Connection status indicator
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 8.dp)
-            ) {
-                // Determine color and text based on connection status
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
                 val connectionColor = if (connectedDevice != null) Color.Green else Color.Red
                 val connectionText = if (connectedDevice != null) "Connected" else "Scanning..."
-
-                // Circular indicator for connection status
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(connectionColor, CircleShape) // Green for connected, red for scanning
-                )
-                Spacer(modifier = Modifier.width(8.dp)) // Spacing between dot and text
-                Text(
-                    text = connectionText,
-                    color = textColor, // White text color
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Box(modifier = Modifier.size(12.dp).background(connectionColor, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text(connectionText, color = textColor, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
 
-            //Fetch Stored Data button
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons for getting data and resetting device
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Get Data button - sends command to request data from device
+                Button(
+                    onClick = {
+                        if (!isGettingData) {
+                            isGettingData = true
+                            lastPacketCount = packetHistory.size
+                            commandSender.sendCommand(byteArrayOf(0xBB.toByte(), 0xCC.toByte()), 40000)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    modifier = Modifier.weight(1f),
+                    enabled = !isGettingData
+                ) {
+                    if (isGettingData) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text("Get Data", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Reset Device button - sends reset command to device
+                Button(
+                    onClick = {
+                        if (!isResetting) {
+                            isResetting = true
+                            commandSender.sendCommand(byteArrayOf(0xFF.toByte(), 0xFF.toByte()), 40000)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    modifier = Modifier.weight(1f),
+                    enabled = !isResetting
+                ) {
+                    if (isResetting) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text("Reset Device", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Statistics cards showing packet arrival and loss
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                // Total packets received card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Total Packets Arrival", color = Color.White, fontSize = 14.sp)
+                            Text("${packetHistory.size}", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (packetHistory.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val receivedIds = packetHistory
+                                .filterIsInstance<BluetoothScanViewModel.SensorData.DataLoggerData>()
+                                .map { it.currentPacketId }
+                                .distinct()
+                                .sorted()
+
+                            Text(
+                                text = "Received IDs: ${receivedIds.joinToString(", ")}",
+                                color = Color(0xFFB2FF59),
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Lost packets card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (lostPacketIds.isEmpty()) Color.White.copy(alpha = 0.1f) else Color(0x33FF5252)
+                    ),
+                    border = BorderStroke(1.dp, if (lostPacketIds.isEmpty()) Color.White.copy(alpha = 0.2f) else Color(0x66FF5252))
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Packets Lost", color = Color.White, fontSize = 14.sp)
+                            Text("${lostPacketIds.size}", color = if (lostPacketIds.isEmpty()) Color.White else Color(0xFFFF5252),
+                                fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                        if (lostPacketIds.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Lost IDs: ${lostPacketIds.joinToString(", ")}",
+                                color = Color(0xFFFFCCCC),
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Export raw data button
+            var isExporting by remember { mutableStateOf(false) }
+
+            val createDocumentLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.CreateDocument("text/csv")
+            ) { uri: Uri? ->
+                if (uri != null && packetHistory.isNotEmpty()) {
+                    isExporting = true
+                    coroutineScope.launch {
+                        withContext(Dispatchers.IO) {
+                            try {
+                                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                                    val dateFormat = SimpleDateFormat(
+                                        "yyyy-MM-dd HH:mm:ss.SSS",
+                                        Locale.getDefault()
+                                    )
+
+                                    // Write CSV header
+                                    val header = "Timestamp,Packet_ID,Last_Packet_ID,Device_ID,Raw_Data_Bytes,Raw_Hex_String\n"
+                                    outputStream.write(header.toByteArray())
+
+                                    // Write each packet as CSV row
+                                    packetHistory.reversed().forEach { packet ->
+                                        val line = buildString {
+                                            append(dateFormat.format(Date(packet.timestamp)))
+                                            append(",")
+                                            append(packet.currentPacketId)
+                                            append(",")
+                                            append(packet.lastPacketId)
+                                            append(",")
+                                            append(packet.deviceId)
+                                            append(",")
+                                            val byteCount = packet.rawData.split(" ").size
+                                            append(byteCount)
+                                            append(",")
+                                            append("\"${packet.rawData}\"")
+                                            append("\n")
+                                        }
+                                        outputStream.write(line.toByteArray())
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            } finally {
+                                withContext(Dispatchers.Main) {
+                                    isExporting = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             Button(
                 onClick = {
-                    coroutineScope.launch @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_ADVERTISE) {
-                   //     viewModel.sendAdvertiseCommandToSensor(deviceAddress)
-                    }
+                    if (packetHistory.isEmpty()) return@Button
+                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                    val filename = "DataLogger_Raw_${deviceId}_$timestamp.csv"
+                    createDocumentLauncher.launch(filename)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF237C85))
+                enabled = packetHistory.isNotEmpty() && !isExporting,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9C27B0)),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Get Data", color = Color.White, fontWeight = FontWeight.Bold)
+                if (isExporting) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Exporting Raw Data...", color = Color.White)
+                    }
+                } else {
+                    Text("Export All Raw Data as CSV", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             }
 
-
-            // Add spacing before data display section
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Determine which device to display data for
+            // Display packet list or loading state
             val deviceToDisplay = connectedDevice ?: currentDevice
+            val uniquePackets = packetHistory.distinctBy { it.currentPacketId }
+            if (uniquePackets.isNotEmpty()) {
+                val listState = rememberLazyListState()
 
-            // Display Data Logger-specific data if available
-            val sensorData = deviceToDisplay?.sensorData
-            if (sensorData is BluetoothScanViewModel.SensorData.DataLoggerData) {
-                if (packetHistory.isNotEmpty()) {
-                    // Display packet history in a scrollable list
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        itemsIndexed(packetHistory) { index, dataLoggerData ->
-                            // Render each packet using DataLoggerDisplay composable
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        itemsIndexed(
+                            items = packetHistory,
+                            key = { index, packet -> "${packet.currentPacketId}_${packet.timestamp}_$index" }
+                        ) { index, dataLoggerData ->
                             DataLoggerDisplay(
                                 dataLoggerData = dataLoggerData,
                                 viewModel = viewModel,
@@ -271,31 +587,38 @@ fun DataLoggerScreen(
                             )
                         }
                     }
-                } else {
-                    // Show message if no packets have been received
-                    Text("No DataLogger packets received yet", color = textColor)
+
+                    DraggableScrollbar(
+                        state = listState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 2.dp, top = 20.dp, bottom = 20.dp)
+                    )
                 }
             } else {
-                // Show loading state when no Data Logger data is available
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Loading state when no packets available
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
                         text = "Device type: Data Logger",
-                        color = textColor, // White text color
+                        color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    // Show loading indicator while searching for devices
-                    CircularProgressIndicator(color = textColor, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(16.dp))
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp)
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Searching for DataLogger devices...",
-                        color = textColor.copy(alpha = 0.7f), // Slightly transparent white
+                        text = "Waiting for Data Packets...",
+                        color = Color.White.copy(alpha = 0.7f),
                         fontSize = 12.sp
                     )
                     Text(
                         text = "Found ${devices.size} BLE devices",
-                        color = textColor.copy(alpha = 0.6f), // More transparent white
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 12.sp
                     )
                 }
@@ -304,144 +627,257 @@ fun DataLoggerScreen(
     }
 }
 
-// Utility function to convert continuous FF (255) triplets to "--" for better readability
+// Convert continuous FF values in accelerometer data to "NA" for display
 fun mapContinuousFFtoNA(points: List<List<Int>>): List<Triple<String, String, String>> {
-    // Initialize result list to store mapped triplets
-    val result = mutableListOf<Triple<String, String, String>>()
-    var i = 0
-    while (i < points.size) {
-        // Check if the current point is an FF triplet (255, 255, 255)
-        val isFF = points[i].size >= 3 && points[i][0] == 255 && points[i][1] == 255 && points[i][2] == 255
-        if (isFF) {
-            // Track the start of consecutive FF triplets
-            val start = i
-            // Skip all consecutive FF triplets
-            while (i < points.size && points[i].size >= 3 &&
-                points[i][0] == 255 && points[i][1] == 255 && points[i][2] == 255
-            ) {
-                i++
-            }
-            // Replace each FF triplet with "--" for readability
-            for (j in start until i) result.add(Triple("--", "--", "--"))
+    return points.map { point ->
+        if (point.size >= 3 && point[0] == 255 && point[1] == 255 && point[2] == 255) {
+            Triple("--", "--", "--")
         } else {
-            // Convert valid data points to strings
-            result.add(Triple(points[i][0].toString(), points[i][1].toString(), points[i][2].toString()))
-            i++
+            Triple(point[0].toString(), point[1].toString(), point[2].toString())
         }
     }
-    return result
 }
 
-// Composable function to display individual Data Logger data packets
+// Composable to display individual DataLogger packet
 @Composable
 fun DataLoggerDisplay(
-    dataLoggerData: BluetoothScanViewModel.SensorData.DataLoggerData, // Data for the specific packet
-    viewModel: BluetoothScanViewModel<Any>, // ViewModel for accessing additional data
-    packetIndex: Int, // Index of the packet in the history list
-    modifier: Modifier = Modifier // Optional modifier for customization
+    dataLoggerData: BluetoothScanViewModel.SensorData.DataLoggerData,
+    viewModel: BluetoothScanViewModel<Any>,
+    packetIndex: Int,
+    modifier: Modifier = Modifier
 ) {
-    // Column layout for organizing packet data display
+    // Process accelerometer data to ensure exactly 80 points
+    val displayAccelPoints = remember(dataLoggerData.payloadAccel) {
+        val original = dataLoggerData.payloadAccel
+
+        val fixedList = when {
+            original.size >= 80 -> original.take(80)
+            original.isNotEmpty() -> {
+                val filled = original.toMutableList()
+                val last = original.last()
+                repeat(80 - original.size) { filled.add(last) }
+                filled
+            }
+            else -> List(80) { Triple(0, 0, 0) }
+        }
+
+        // Convert to unsigned values and handle FF values
+        fixedList.map { triple ->
+            val x = triple.first.toInt() and 0xFF
+            val y = triple.second.toInt() and 0xFF
+            val z = triple.third.toInt() and 0xFF
+
+            if (x == 255 && y == 255 && z == 255) {
+                Triple("--", "--", "--")
+            } else {
+                Triple(x.toString(), y.toString(), z.toString())
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp), // Add padding around the content
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Show a header only for the first packet in the list
+        // Title for first packet
         if (packetIndex == 0) {
             Text(
                 text = "DataLogger - Large Data Packets",
                 style = MaterialTheme.typography.titleLarge,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 12.dp)
             )
         }
 
-        // Display the packet ID
+        // Packet ID display
         Text(
-            text = "Device ID: ${dataLoggerData.packetId}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Green, // Green for device ID
+            text = "Packet ID: ${dataLoggerData.currentPacketId}",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color(0xFF674414),
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 4.dp)
         )
 
-        // Display raw data in chunks within a scrollable list
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 80.dp, max = 200.dp) // Constrain height between 80dp and 200dp
-                .background(Color(0xFF1E1E1E), RoundedCornerShape(8.dp)) // Dark background with rounded corners
-                .padding(8.dp)
+        // Timestamp display
+        Text(
+            text = "Timestamp: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(dataLoggerData.timestamp))}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Black,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        // Accelerometer data section header
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.align(Alignment.Start)
         ) {
-            // Split raw data into 64-byte chunks for display
-            val chunks = dataLoggerData.rawData.chunked(64)
-            items(chunks) { chunk ->
+            Surface(color = Color(0xFF4CAF50), shape = RoundedCornerShape(8.dp)) {
                 Text(
-                    text = chunk,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF237C85), // Custom teal color for raw data
-                    modifier = Modifier.fillMaxWidth()
+                    text = "80 Points",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                 )
             }
+            Text("Accelerometer Data", color = Color.Black.copy(0.7f), fontSize = 14.sp)
         }
 
-        // Add spacing after raw data
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Display payload size information
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Payload: ${dataLoggerData.rawData.length} bytes (${dataLoggerData.payloadPackets.size} triplets)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF5644A2), // Custom purple color for payload info
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        // Handle case where no payload packets are available
-        if (dataLoggerData.payloadPackets.isEmpty()) {
-            Text("No large data received yet", color = Color.Red)
-            return@Column // Exit early if no data to display
-        }
-
-        // Display parsed data points in a scrollable list
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 500.dp) // Constrain maximum height to 500dp
-        ) {
-            // Header for parsed data points
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "-------- Parsed Data Points --------",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Yellow,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
+        // Accelerometer data list
+        Surface(color = Color(0xFF0D1E0D), shape = RoundedCornerShape(8.dp)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 350.dp)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                itemsIndexed(displayAccelPoints) { index, triple ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "#${(index + 1).toString().padStart(2, '0')}",
+                            color = Color(0xFF888888),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            modifier = Modifier.width(35.dp)
+                        )
+                        Text(
+                            text = "X: ${triple.first.padStart(4, ' ')}",
+                            color = if (triple.first == "--") Color.Gray else Color(0xFFFF6B6B),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Y: ${triple.second.padStart(4, ' ')}",
+                            color = if (triple.second == "--") Color.Gray else Color(0xFF4ECDC4),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Z: ${triple.third.padStart(4, ' ')}",
+                            color = if (triple.third == "--") Color.Gray else Color(0xFF95E1D3),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
+        }
 
-            // Map FF triplets to "--" for display
-            val mappedPoints = mapContinuousFFtoNA(dataLoggerData.payloadPackets)
-            items(mappedPoints) { dataPoint ->
-                // Display each data point (X, Y, Z coordinates)
-                Text(
-                    text = "Point: X=${dataPoint.first}, Y=${dataPoint.second}, Z=${dataPoint.third}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.8f), // Slightly transparent white
-                    modifier = Modifier.padding(vertical = 2.dp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Raw data section header
+        Text(
+            text = "Raw Data (${dataLoggerData.rawData.split(" ").size} bytes):",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF5644A2),
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.align(Alignment.Start)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Raw hex data display
+        Surface(color = Color(0xFF1E1E1E), shape = RoundedCornerShape(8.dp)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 200.dp)
+                    .padding(12.dp)
+            ) {
+                val chunks = dataLoggerData.rawData.chunked(64)
+                items(chunks.size) { i ->
+                    Text(
+                        text = chunks[i],
+                        color = Color(0xFF237C85),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp
+                    )
+                    if (i < chunks.size - 1) Spacer(Modifier.height(4.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Total bytes summary
+        Text(
+            text = "Total payload: ${dataLoggerData.rawData.split(" ").size} bytes received",
+            color = Color.Black,
+            fontSize = 13.sp
+        )
+    }
+}
+
+// Custom draggable scrollbar for LazyColumn
+@Composable
+fun DraggableScrollbar(
+    state: LazyListState,
+    modifier: Modifier = Modifier
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var isDragging by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier = modifier.fillMaxHeight().width(50.dp)) {
+        val localConstraints = this@BoxWithConstraints.constraints
+        val maxHeightPx = localConstraints.maxHeight.toFloat()
+
+        val totalItems = state.layoutInfo.totalItemsCount
+        val visibleItems = state.layoutInfo.visibleItemsInfo
+
+        // Only show scrollbar if there are more items than visible area
+        if (totalItems > visibleItems.size && visibleItems.isNotEmpty()) {
+            val thumbHeightPx = max(120f, maxHeightPx * (visibleItems.size.toFloat() / totalItems))
+            val trackHeightPx = maxHeightPx - thumbHeightPx
+
+            val scrollOffset = state.firstVisibleItemIndex.toFloat() / (totalItems - visibleItems.size).coerceAtLeast(1)
+            val thumbOffsetY = with(LocalDensity.current) { (scrollOffset * trackHeightPx).toDp() }
+
+            // Touch detection area
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(totalItems, maxHeightPx) {
+                        detectVerticalDragGestures(
+                            onDragStart = { isDragging = true },
+                            onDragEnd = { isDragging = false },
+                            onVerticalDrag = { change, _ ->
+                                val dragY = change.position.y
+                                val newScrollOffset = (dragY / maxHeightPx).coerceIn(0f, 1f)
+                                val itemToScroll = (newScrollOffset * totalItems).toInt()
+
+                                coroutineScope.launch {
+                                    state.scrollToItem(itemToScroll.coerceIn(0, totalItems - 1))
+                                }
+                            }
+                        )
+                    }
+            ) {
+                // Visual scrollbar element
+                Box(
+                    modifier = Modifier
+                        .offset(y = thumbOffsetY)
+                        .align(Alignment.TopEnd)
+                        .width(10.dp)
+                        .height(with(LocalDensity.current) { thumbHeightPx.toDp() })
+                        .padding(end = 6.dp)
+                        .background(
+                            color = if (isDragging) Color.White else Color.White.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(8.dp)
+                        )
                 )
             }
         }

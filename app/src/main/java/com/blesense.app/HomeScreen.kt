@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.icu.text.SimpleDateFormat
 import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
@@ -38,59 +39,44 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import androidx.compose.material3.DropdownMenuItem
+import java.util.Locale
 
-/**
- * MainScreen - The core Bluetooth Low Energy (BLE) scanning dashboard.
- *
- * Displays real-time discovered BLE devices with sensor-specific data previews.
- * Supports dark/light mode, permission handling, Bluetooth state monitoring,
- * and navigation to detailed advertising data screen.
- */
-@SuppressLint("MissingPermission") // Permissions are checked before BLE operations
+// Main screen for BLE device discovery and management
+@SuppressLint("MissingPermission")
 @Composable
 fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothScanViewModel<Any?>) {
-
-    // Detect device orientation (useful for future responsive layouts)
+    // Detect device orientation
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // Live data from ViewModel
+    // Collect live data from ViewModel
     val bluetoothDevices by bluetoothViewModel.devices.collectAsState()
     val isScanning by bluetoothViewModel.isScanning.collectAsState()
 
-    // Context & Activity reference
+    // Get context and activity
     val context = LocalContext.current
     val activity = context as ComponentActivity
 
-    // Track if all required Bluetooth permissions are granted
+    // Track Bluetooth permissions state
     val isPermissionGranted = remember { mutableStateOf(checkBluetoothPermissions(context)) }
 
-    // Dropdown state for sensor type selection
+    // State for sensor type dropdown
     var expanded by remember { mutableStateOf(false) }
 
-    // List of supported sensor types (used for filtering and data parsing)
+    // List of supported sensor types
     val sensorTypes = listOf(
         "SHT40", "LIS2DH", "Lux Sensor", "Soil Sensor",
-        "Speed Distance", "Ammonia Sensor", "DataLogger"
+        "Speed Distance", "Ammonia Sensor", "DataLogger", "TempLogger"
     )
 
-    // Currently selected sensor type (affects preview display)
+    // Selected sensor type for filtering
     var selectedSensor by remember { mutableStateOf(sensorTypes[0]) }
 
-    // Toggle to show all devices or limit to first 4
+    // State to control showing all devices or limited view
     var showAllDevices by remember { mutableStateOf(false) }
 
-    // Observe current theme from ThemeManager
+    // Get current theme mode
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-
-    // UI Text (Hardcoded - replace with string resources for localization)
-    val appTitle = "BLE Sense"
-    val nearbyDevices = "Nearby Devices"
-    val bluetoothPermissionsRequired = "Bluetooth permissions required"
-    val scanningForDevices = "Scanning for devices..."
-    val noDevicesFound = "No devices found"
-    val showMore = "Show More"
-    val showLess = "Show Less"
 
     // Theme-aware colors
     val backgroundColor = if (isDarkMode) Color(0xFF121212) else Color(0xFFF5F5F5)
@@ -102,47 +88,48 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
     // Bluetooth adapter instance
     val bluetoothAdapter = remember { BluetoothAdapter.getDefaultAdapter() }
 
-    // Re-check permissions on first composition
+    // Check permissions on first load
     LaunchedEffect(Unit) {
         isPermissionGranted.value = checkBluetoothPermissions(context)
     }
 
-    // Request missing permissions via custom handler
+    // Handle Bluetooth permission requests
     BluetoothPermissionHandler(
         onPermissionsGranted = { isPermissionGranted.value = true }
     )
 
-    // Listen for Bluetooth ON/OFF state changes
+    // Broadcast receiver to monitor Bluetooth state changes
     val bluetoothStateReceiver = remember {
         object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
                     val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                     if (state == BluetoothAdapter.STATE_ON && isPermissionGranted.value && !isScanning) {
-                        bluetoothViewModel.startPeriodicScan(activity)
+                        bluetoothViewModel.startContinuousScan(activity)
                     }
                 }
             }
         }
     }
 
-    // Register receiver when composable enters composition
+    // Register Bluetooth state receiver
     DisposableEffect(Unit) {
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
         context.registerReceiver(bluetoothStateReceiver, filter)
         onDispose { context.unregisterReceiver(bluetoothStateReceiver) }
     }
 
-    // Automatically start scanning when conditions are met
+    // Start scanning when permissions granted and Bluetooth is enabled
     DisposableEffect(isPermissionGranted.value, bluetoothAdapter?.isEnabled) {
         if (isPermissionGranted.value && bluetoothAdapter?.isEnabled == true && !isScanning) {
-            bluetoothViewModel.startPeriodicScan(activity)
+            bluetoothViewModel.startContinuousScan(activity)
         }
         onDispose { bluetoothViewModel.stopScan() }
     }
 
     // Main layout using Scaffold
     Scaffold(
+        modifier = Modifier.systemBarsPadding(),
         backgroundColor = backgroundColor,
         topBar = {
             TopAppBar(
@@ -150,7 +137,7 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
                 elevation = 8.dp
             ) {
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    // Back button
+                    // Back button to intermediate screen
                     IconButton(
                         onClick = { navController.navigate("intermediate_screen") },
                         modifier = Modifier.align(Alignment.CenterStart)
@@ -160,14 +147,14 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
 
                     // App title
                     Text(
-                        text = appTitle,
+                        text = "BLE Sense",
                         fontWeight = FontWeight.Bold,
                         color = textColor,
                         style = MaterialTheme.typography.h6,
                         textAlign = TextAlign.Center
                     )
 
-                    // Dark/Light mode toggle
+                    // Theme toggle button
                     IconButton(
                         onClick = { ThemeManager.toggleDarkMode(!isDarkMode) },
                         modifier = Modifier.align(Alignment.CenterEnd)
@@ -200,23 +187,23 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
                         backgroundColor = cardBackgroundColor
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            // Header: Device count + controls
+                            // Header section with device count and controls
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "$nearbyDevices (${bluetoothDevices.size})",
+                                    text = "Nearby Devices (${bluetoothDevices.size})",
                                     style = MaterialTheme.typography.h6,
                                     color = textColor
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // Manual refresh button
+                                    // Refresh button
                                     IconButton(onClick = {
                                         if (isPermissionGranted.value && !isScanning) {
                                             if (bluetoothAdapter?.isEnabled == true) {
-                                                bluetoothViewModel.startPeriodicScan(activity)
+                                                bluetoothViewModel.startContinuousScan(activity)
                                             } else {
                                                 context.startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
                                             }
@@ -251,11 +238,11 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Conditional content based on state
+                            // Conditional display based on state
                             when {
                                 !isPermissionGranted.value -> {
                                     Text(
-                                        bluetoothPermissionsRequired,
+                                        "Bluetooth permissions required",
                                         textAlign = TextAlign.Center,
                                         color = textColor,
                                         modifier = Modifier.fillMaxWidth()
@@ -277,14 +264,14 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
                                         if (isScanning) {
                                             CircularProgressIndicator(color = if (isDarkMode) Color(0xFF64B5F6) else Color(0xFF2196F3))
                                             Spacer(modifier = Modifier.height(8.dp))
-                                            Text(scanningForDevices, color = textColor)
+                                            Text("Scanning for devices...", color = textColor)
                                         } else {
-                                            Text(noDevicesFound, color = textColor)
+                                            Text("No devices found", color = textColor)
                                         }
                                     }
                                 }
                                 else -> {
-                                    // Show limited or all devices
+                                    // Show limited or all devices based on showAllDevices flag
                                     val devicesToShow = if (showAllDevices) bluetoothDevices else bluetoothDevices.take(4)
                                     devicesToShow.forEach { device ->
                                         BluetoothDeviceItem(
@@ -296,7 +283,7 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
                                         Divider(color = dividerColor)
                                     }
 
-                                    // Show More / Show Less toggle
+                                    // Show More/Show Less toggle for long lists
                                     if (bluetoothDevices.size > 4) {
                                         Box(
                                             modifier = Modifier
@@ -310,7 +297,7 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = if (showAllDevices) showLess else showMore,
+                                                text = if (showAllDevices) "Show Less" else "Show More",
                                                 modifier = Modifier.padding(12.dp),
                                                 color = textColor
                                             )
@@ -326,9 +313,7 @@ fun MainScreen(navController: NavHostController, bluetoothViewModel: BluetoothSc
     }
 }
 
-/**
- * Checks required Bluetooth permissions based on Android version.
- */
+// Check if all required Bluetooth permissions are granted
 private fun checkBluetoothPermissions(context: Context): Boolean {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         listOf(
@@ -345,10 +330,7 @@ private fun checkBluetoothPermissions(context: Context): Boolean {
     }
 }
 
-/**
- * Composable for displaying a single Bluetooth device in the list.
- * Shows name, address, RSSI, and sensor-specific live data preview.
- */
+// Composable to display individual Bluetooth device in list
 @Composable
 fun BluetoothDeviceItem(
     device: BluetoothScanViewModel.BluetoothDevice,
@@ -356,6 +338,7 @@ fun BluetoothDeviceItem(
     selectedSensor: String,
     isDarkMode: Boolean
 ) {
+    // Theme-aware colors for device item
     val textColor = if (isDarkMode) Color.White else Color.Black
     val secondaryTextColor = if (isDarkMode) Color(0xFFB0B0B0) else Color(0xFF757575)
     val iconBg = if (isDarkMode) Color(0xFF0D47A1) else Color(0xFFE3F2FD)
@@ -373,7 +356,7 @@ fun BluetoothDeviceItem(
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Bluetooth icon
+        // Bluetooth icon container
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -390,39 +373,57 @@ fun BluetoothDeviceItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
+        // Device information column
         Column {
             Text(device.name, style = MaterialTheme.typography.subtitle1, color = textColor)
             Text("Address: ${device.address}", style = MaterialTheme.typography.caption, color = secondaryTextColor)
             Text("RSSI: ${device.rssi} dBm", style = MaterialTheme.typography.caption, color = secondaryTextColor)
 
-            // Display sensor-specific preview if data exists
+            // Display sensor-specific data preview
             device.sensorData?.let { data ->
+                // Generate preview text based on sensor type
                 val displayText = when {
                     selectedSensor == "SHT40" && data is BluetoothScanViewModel.SensorData.SHT40Data ->
                         "Temp: ${data.temperature}°C, Humidity: ${data.humidity}%"
+
+                    selectedSensor == "TempLogger" && data is BluetoothScanViewModel.SensorData.TempLoggerData ->
+                        "Temp: ${data.temperature}°C, Hum: ${data.humidity}%"
+
                     selectedSensor == "LIS2DH" && data is BluetoothScanViewModel.SensorData.LIS2DHData ->
                         "X: ${data.x}, Y: ${data.y}, Z: ${data.z}"
+
                     selectedSensor == "Lux Sensor" && data is BluetoothScanViewModel.SensorData.LuxSensorData ->
                         "Lux: ${data.lux}"
+
                     selectedSensor == "Soil Sensor" && data is BluetoothScanViewModel.SensorData.SoilSensorData ->
                         "N:${data.nitrogen} P:${data.phosphorus} K:${data.potassium} | Moisture:${data.moisture}%"
+
                     selectedSensor == "Speed Distance" && data is BluetoothScanViewModel.SensorData.SDTData ->
                         "Speed: ${data.speed}m/s, Distance: ${data.distance}m"
+
                     selectedSensor == "Ammonia Sensor" && data is BluetoothScanViewModel.SensorData.AmmoniaSensorData ->
                         "Ammonia: ${data.ammonia}"
-                    selectedSensor == "DataLogger" && data is BluetoothScanViewModel.SensorData.DataLoggerData ->
-                        "Packet ID: ${data.packetId} | Packets: ${data.payloadPackets.size}"
+
+                    selectedSensor == "DataLogger" && data is BluetoothScanViewModel.SensorData.DataLoggerData -> {
+                        val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                            .format(java.util.Date(data.timestamp))
+                        "Total: ${data.currentPacketId} | First ID: ${data.lastPacketId} | Points: ${data.payloadAccel.size} | $time"
+                    }
+                    selectedSensor == "TempLogger" && data is BluetoothScanViewModel.SensorData.TempLoggerData ->
+                        "Temp: ${data.temperature}°C, Hum: ${data.humidity}%"
+
                     else -> "No preview available"
                 }
 
-                // Special preview box for DataLogger (larger data)
+                // Special preview for DataLogger devices
                 if (selectedSensor == "DataLogger" && data is BluetoothScanViewModel.SensorData.DataLoggerData) {
                     DataLoggerPreview(
-                        rawData = "Packet ID: ${data.packetId} | Packets: ${data.payloadPackets.size}",
+                        rawData = displayText,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                     )
                 }
 
+                // Display sensor data preview
                 Text(
                     text = displayText,
                     style = MaterialTheme.typography.caption,
@@ -435,28 +436,42 @@ fun BluetoothDeviceItem(
     }
 }
 
-/**
- * Dedicated preview card for DataLogger devices showing packet info.
- */
+// Special preview card for DataLogger devices showing packet information
 @Composable
 fun DataLoggerPreview(rawData: String, modifier: Modifier = Modifier) {
-    Box(
+    Surface(
         modifier = modifier
-            .height(80.dp)
-            .background(
-                if (isSystemInDarkTheme()) Color(0xFF1E1E1E) else Color.White,
-                RoundedCornerShape(8.dp)
-            )
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
+            .heightIn(min = 100.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isSystemInDarkTheme()) Color(0xFF1E1E1E) else Color(0xFFF0F8FF),
+        elevation = 8.dp
     ) {
-        Text(
-            text = rawData,
-            style = MaterialTheme.typography.caption,
-            color = if (isSystemInDarkTheme()) Color(0xFF64B5F6) else Color(0xFF2196F3),
-            textAlign = TextAlign.Center,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "DataLogger Live",
+                style = MaterialTheme.typography.subtitle1,
+                color = if (isSystemInDarkTheme()) Color(0xFF64B5F6) else Color(0xFF1976D2),
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = rawData,
+                style = MaterialTheme.typography.body1,
+                color = if (isSystemInDarkTheme()) Color.White else Color(0xFF424242),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Medium
+            )
+
+            Text(
+                text = "Packet Size: ${rawData.split(" ").size} bytes",
+                style = MaterialTheme.typography.caption,
+                color = Color(0xFFAAAAAA)
+            )
+        }
     }
 }

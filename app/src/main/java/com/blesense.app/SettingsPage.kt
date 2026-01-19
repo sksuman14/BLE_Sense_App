@@ -78,6 +78,7 @@ fun ModernSettingsScreen(
     val currentUser = viewModel.checkCurrentUser()
 
     Scaffold(
+        modifier = Modifier.systemBarsPadding(),
         backgroundColor = backgroundColor,
         topBar = {
             TopAppBar(

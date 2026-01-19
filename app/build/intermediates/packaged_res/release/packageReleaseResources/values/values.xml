@@ -13,6 +13,22 @@
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
     <color name="white">#FFFFFFFF</color>
+    <item name="download_button" type="id"/>
+    <item name="payloadAirPressureTextView" type="id"/>
+    <item name="payloadCounter1TextView" type="id"/>
+    <item name="payloadCounter2TextView" type="id"/>
+    <item name="payloadHumidityTextView" type="id"/>
+    <item name="payloadRadiationTextView" type="id"/>
+    <item name="payloadRainTextView" type="id"/>
+    <item name="payloadRecyclerView" type="id"/>
+    <item name="payloadTemperatureTextView" type="id"/>
+    <item name="payloadTimestampTextView" type="id"/>
+    <item name="payloadVisibilityTextView" type="id"/>
+    <item name="payloadWindDirectionTextView" type="id"/>
+    <item name="payloadWindSpeedTextView" type="id"/>
+    <item name="rawDataTextView" type="id"/>
+    <item name="scan_button" type="id"/>
+    <item name="statusTextView" type="id"/>
     <string name="app_name">BLE Sense</string>
     <string name="default_web_client_id" translatable="false">634409104545-t9obf7nmakk2jhahr31jlaspva4858fb.apps.googleusercontent.com</string>
     <string name="firebase_database_url" translatable="false">https://ble-sense-65650-default-rtdb.firebaseio.com</string>

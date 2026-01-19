@@ -11,12 +11,12 @@
             priority="0"/>
         <location
             file="${:app*projectDir}/build.gradle.kts"
-            line="68"
+            line="89"
             column="5"
-            startOffset="2110"
-            endLine="68"
+            startOffset="3079"
+            endLine="89"
             endColumn="45"
-            endOffset="2150"/>
+            endOffset="3119"/>
     </incident>
 
 </incidents>
