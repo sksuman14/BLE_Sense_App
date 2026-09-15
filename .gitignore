@@ -1,4 +1,6 @@
-# Ignore all build artifacts and binaries
+# Project exclude paths
+/BLE_Sense_Exp/.gradle/
+/BLE_Sense_Exp/build/
 /app/build/
 /*.apk
 *.aab

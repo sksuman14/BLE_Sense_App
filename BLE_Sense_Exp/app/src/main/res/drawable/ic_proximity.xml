@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Center sensor emitter dot -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,12m-2.5,0a2.5,2.5 0,1,1 5,0a2.5,2.5 0,1,1 -5,0"/>
+    <!-- Inner proximity detection wave pair -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M7.05,16.95 C5.75,15.65 5,13.9 5,12 s0.75,-3.65 2.05,-4.95 l1.41,1.41 C7.4,9.52 7,10.71 7,12 s0.4,2.48 1.46,3.54 L7.05,16.95 z"/>
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M16.95,7.05 C18.25,8.35 19,10.1 19,12 s-0.75,3.65 -2.05,4.95 l-1.41,-1.41 C16.6,14.48 17,13.29 17,12 s-0.4,-2.48 -1.46,-3.54 L16.95,7.05 z"/>
+    <!-- Outer proximity detection wave pair -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M4.22,19.78 C1.88,17.44 1,14.8 1,12 s0.88,-5.44 3.22,-7.78 l1.41,1.41 C3.85,7.41 3,9.58 3,12 s0.85,4.59 2.64,6.37 L4.22,19.78 z"/>
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M19.78,4.22 C22.12,6.56 23,9.2 23,12 s-0.88,5.44 -3.22,7.78 l-1.41,-1.41 C20.15,16.59 21,14.42 21,12 s-0.85,-4.59 -2.64,-6.37 L19.78,4.22 z"/>
+</vector>
