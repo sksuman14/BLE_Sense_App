@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="statusTextView" type="id" />
+    <item name="scan_button" type="id" />
+    <item name="download_button" type="id" />
+    <item name="rawDataTextView" type="id" />
+    <item name="payloadRecyclerView" type="id" />
+    <item name="payloadTemperatureTextView" type="id" />
+    <item name="payloadHumidityTextView" type="id" />
+    <item name="payloadAirPressureTextView" type="id" />
+    <item name="payloadWindSpeedTextView" type="id" />
+    <item name="payloadWindDirectionTextView" type="id" />
+    <item name="payloadRainTextView" type="id" />
+    <item name="payloadRadiationTextView" type="id" />
+    <item name="payloadVisibilityTextView" type="id" />
+    <item name="payloadCounter1TextView" type="id" />
+    <item name="payloadCounter2TextView" type="id" />
+    <item name="payloadTimestampTextView" type="id" />
+</resources>

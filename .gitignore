@@ -1,0 +1,3 @@
+# Project exclude paths
+/BLE_Sense_Exp/.gradle/
+/BLE_Sense_Exp/build/
