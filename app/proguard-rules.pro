@@ -47,34 +47,6 @@
 
 # Preserve generic signatures and reflection metadata
 # Preserve generic signatures and reflection metadata
-# Preserve generic signatures and reflection metadata
--keepattributes Signature
--keepattributes *Annotation*
--keepattributes Exceptions
--keepattributes InnerClasses
-
-# Retrofit
--keep class retrofit2.** { *; }
--dontwarn retrofit2.**
--keep class retrofit2.http.** { *; }
--keep class retrofit2.converter.** { *; }
-
-# OkHttp (used by Retrofit)
--keep class okhttp3.** { *; }
--dontwarn okhttp3.**
-
-# Gson (used by GsonConverterFactory)
--keep class com.google.gson.** { *; }
--dontwarn com.google.gson.**
-
-# Your API interface and models
--keep class com.example.ble_jetpackcompose.GeminiTranslationApi { *; }
--keep class com.example.ble_jetpackcompose.TranslationRequest { *; }
--keep class com.example.ble_jetpackcompose.TranslationResponse { *; }
--keep class com.example.ble_jetpackcompose.Content { *; }
--keep class com.example.ble_jetpackcompose.Part { *; }
--keep class com.example.ble_jetpackcompose.GenerationConfig { *; }
--keep class com.example.ble_jetpackcompose.TranslationCandidate { *; }
 
 # Preserve suspend function return types and annotations
 -keepclassmembers,allowobfuscation interface * {
@@ -84,10 +56,50 @@
     @retrofit2.http.* <methods>;
 }
 
-# Coroutines (used in suspend functions)
+# ==========================================
+# 1. Preserve Generics & Reflection Metadata
+# ==========================================
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes Exceptions
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+
+# ==========================================
+# 2. Kotlin Coroutines & Continuation
+# ==========================================
+# Note: kotlin.coroutines (standard library) is required for suspend functions!
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-keep class kotlin.coroutines.** { *; }
 -keep class kotlinx.coroutines.** { *; }
 -dontwarn kotlinx.coroutines.**
 
-# Jetpack Compose
--keep class androidx.compose.** { *; }
--dontwarn androidx.compose.**
+# ==========================================
+# 3. Retrofit & OkHttp
+# ==========================================
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
+-keep class retrofit2.http.** { *; }
+-keep class retrofit2.converter.** { *; }
+-keep class okhttp3.** { *; }
+-dontwarn okhttp3.**
+
+# ==========================================
+# 4. Gson
+# ==========================================
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
+
+# ==========================================
+# 5. App API Service & Network Models
+# ==========================================
+# Keep the BackendService interface and its suspend methods
+-keep interface com.blesense.app.api.BackendService { *; }
+-keepclassmembers interface com.blesense.app.api.BackendService {
+    <methods>;
+}
+# Keep the entire API package and SensorPacket data model
+-keep class com.blesense.app.api.** { *; }
+-keepclassmembers class com.blesense.app.api.** { *; }

@@ -1,4 +1,4 @@
-package com.example.ble_jetpackcompose.ui.theme
+package com.blesense.app.ui.theme
 
 import android.app.Activity
 import android.os.Build

@@ -1,4 +1,4 @@
-package com.example.ble_jetpackcompose.ui.theme
+package com.blesense.app.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

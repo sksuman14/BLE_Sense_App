@@ -1,7 +1,24 @@
-# Project exclude paths
-/BLE_Sense_Exp/.gradle/
-/BLE_Sense_Exp/build/
-/app/build/
-/*.apk
+# Android Studio / IntelliJ
+.idea/
+*.iml
+.gradle/
+build/
+app/build/
+local.properties
+
+# Kotlin
+.kotlin/
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.apk
 *.aab
 *.zip
+
+# App specific
+app/release/
+!app/release/*.dm
+!app/release/*.json
