@@ -77,24 +77,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2a8d1c62-c65c-4014-bffc-df98cbe8e759" name="Changes" comment="Merge remote-tracking branch 'origin/master'">
-      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/APP_ARCHITECTURE_AND_LOGIC.md" beforeDir="false" afterPath="$PROJECT_DIR$/APP_ARCHITECTURE_AND_LOGIC.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/AWS_USER_MANUAL.md" beforeDir="false" afterPath="$PROJECT_DIR$/AWS_USER_MANUAL.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/app/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/model/SensorData.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/model/SensorData.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/util/MockSensorUtils.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/util/MockSensorUtils.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AdvertisingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AdvertisingScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/Graph.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/Graph.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/HomeScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/HomeScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RobotControlCompose.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RobotControlCompose.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/AwsSensorHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/AwsSensorHandler.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/SensorHubHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/SensorHubHandler.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" beforeDir="false" afterPath="$PROJECT_DIR$/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/local.properties" beforeDir="false" afterPath="$PROJECT_DIR$/local.properties" afterDir="false" />
-    </list>
+    <list default="true" id="2a8d1c62-c65c-4014-bffc-df98cbe8e759" name="Changes" comment="new changes" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -103,7 +86,7 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=R9ZXA0NW2ZB]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[LocalEmulator::path=C:\Users\1239\.android\avd\Pixel_8_Pro_2_2.avd]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
@@ -173,12 +156,12 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="UPDATE_TYPE" value="REBASE" />
   </component>
-  <component name="GitHubPullRequestSearchHistory">{
-  &quot;lastFilter&quot;: {
-    &quot;state&quot;: &quot;OPEN&quot;,
-    &quot;assignee&quot;: &quot;vansh-121&quot;
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "Rohit-Singh-tech"
   }
-}</component>
+}]]></component>
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;https://github.com/sksuman14/BLE_Sense_App.git&quot;,
@@ -338,14 +321,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1737008090736</updated>
-    </task>
-    <task id="LOCAL-00014" summary="Audio + Loading Icon + Graph + Bluetooth Icon Added">
-      <option name="closed" value="true" />
-      <created>1738910180014</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1738910180014</updated>
     </task>
     <task id="LOCAL-00015" summary="Loading is now properly working">
       <option name="closed" value="true" />
@@ -731,7 +706,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745217056599</updated>
     </task>
-    <option name="localTasksCounter" value="63" />
+    <task id="LOCAL-00063" summary="new changes">
+      <option name="closed" value="true" />
+      <created>1789719453874</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1789719453874</updated>
+    </task>
+    <option name="localTasksCounter" value="64" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -783,7 +766,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Animation Optimized" />
     <MESSAGE value="Multi Language support" />
     <MESSAGE value="Code Optimize Game" />
     <MESSAGE value="Radar Optimization" />
@@ -808,7 +790,8 @@
     <MESSAGE value="Nuclear Trigger alarm set" />
     <MESSAGE value="Ammnonia sensor procedure." />
     <MESSAGE value="Merge remote-tracking branch 'origin/master'" />
-    <option name="LAST_COMMIT_MESSAGE" value="Merge remote-tracking branch 'origin/master'" />
+    <MESSAGE value="new changes" />
+    <option name="LAST_COMMIT_MESSAGE" value="new changes" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
