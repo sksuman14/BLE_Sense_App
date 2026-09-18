@@ -204,7 +204,7 @@ class AwsSensorHandler(
         val err13Val = if (data.size > 44) data[44].toUByte().toInt() else 0
         val err14Val = if (data.size > 45) data[45].toUByte().toInt() else 0
         val err15Val = if (data.size > 46) data[46].toUByte().toInt() else 0
-        val err16Val = if (data.size > 47) data[47].toUByte().toInt() else 0
+
 
         return SensorData.AWSData(
             deviceId = payloadDeviceId,
@@ -232,7 +232,7 @@ class AwsSensorHandler(
             error13 = getBleErrorDescription(err12Val),
             error14 = getBleErrorDescription(err13Val),
             error15 = getBleErrorDescription(err14Val),
-            error16 = getBleErrorDescription(err16Val),
+            error16 = getBleErrorDescription(err15Val),
             rawData = rawDataString,
             deviceAddress = deviceAddress
         )

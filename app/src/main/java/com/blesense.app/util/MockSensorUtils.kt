@@ -18,7 +18,7 @@ object MockSensorUtils {
             "TempLogger" -> BluetoothDeviceModel("TemLogger_Preview", "-95", "AA:BB:CC:00:00:10", "10", SensorData.TempLoggerData("10", "21.50", "60.00", 2150, 6000, "AA BB CC", "AA:BB:CC:00:00:10"))
             "STS30" -> BluetoothDeviceModel("STS30_Preview", "-50", "AA:BB:CC:00:00:11", "11", SensorData.STS30Data("11", "25.00", "77.00"))
             "STTS751" -> BluetoothDeviceModel("STTS_Preview", "-52", "AA:BB:CC:00:00:12", "12", SensorData.STTS751Data("12", "26.00", "78.80"))
-            "Weather" -> BluetoothDeviceModel("Weather_Preview", "-45", "AA:BB:CC:00:00:13", "13", SensorData.WeatherData("13", "24.00", "50.00", "1500", "1015"))
+            "ATRH" -> BluetoothDeviceModel("ATRH_Preview", "-45", "AA:BB:CC:00:00:13", "13", SensorData.ATRHData("13", "24.00", "50.00", "1500", "1015"))
             "Rain" -> BluetoothDeviceModel("Rain_Preview", "-48", "AA:BB:CC:00:00:14", "14", SensorData.RainData("14", "12.50"))
             "Wind" -> BluetoothDeviceModel("Wind_Preview", "-42", "AA:BB:CC:00:00:15", "15", SensorData.WindData("15", "5.40", "180"))
             else -> null
@@ -40,7 +40,7 @@ object MockSensorUtils {
             "AA:BB:CC:00:00:10" -> SensorData.TempLoggerData("10", "21.50", "60.00", 2150, 6000, "AA BB CC", address)
             "AA:BB:CC:00:00:11" -> SensorData.STS30Data("11", "25.00", "77.00", address)
             "AA:BB:CC:00:00:12" -> SensorData.STTS751Data("12", "26.00", "78.80", address)
-            "AA:BB:CC:00:00:13" -> SensorData.WeatherData("13", "24.00", "50.00", "1500", "1015", address)
+            "AA:BB:CC:00:00:13" -> SensorData.ATRHData("13", "24.00", "50.00", "1500", "1015", address)
             "AA:BB:CC:00:00:14" -> SensorData.RainData("14", "12.50", address)
             "AA:BB:CC:00:00:15" -> SensorData.WindData("15", "5.40", "180", address)
             else -> null

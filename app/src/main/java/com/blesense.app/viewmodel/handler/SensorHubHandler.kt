@@ -65,6 +65,7 @@ class SensorHubHandler(
         flusherJob?.cancel()
         flusherJob = coroutineScope.launch(Dispatchers.Default) {
             while (isActive) {
+                delay(50)
                 flushUpdates()
             }
         }
@@ -100,7 +101,7 @@ class SensorHubHandler(
     // ── Sensor Hub device name patterns ──────────────────────────────────────
     private val sensorHubPatterns = listOf(
         "SHT", "SOIL", "Activity", "LIS3DH", "NH", "Ammonia",
-        "sen66", "VEML", "VCNL", "AHT", "BME", "TempLogger", "TLOG", "STS30", "STTS751", "Weather", "Rain", "Wind"
+        "sen66", "VEML", "VCNL", "AHT", "BME", "TempLogger", "TLOG", "STS30", "STTS751", "ATRH", "Rain", "Wind"
     )
 
     override fun canHandle(
@@ -161,7 +162,7 @@ class SensorHubHandler(
                         "sen66" -> parseSen66Data(manufacturerData, deviceAddress)
                         "STS30" -> parseSTS30Data(data, deviceAddress)
                         "STTS751" -> parseSTTS751Data(data, deviceAddress)
-                        "Weather" -> parseWeatherData(data, deviceAddress)
+                        "ATRH" -> parseATRHData(data, deviceAddress)
                         "Rain" -> parseRainData(data, deviceAddress)
                         "Wind" -> parseWindData(data, deviceAddress)
                         else -> null
@@ -246,7 +247,7 @@ class SensorHubHandler(
                 name?.contains("TLOG", ignoreCase = true) == true -> "TempLogger"
         name?.contains("STS", ignoreCase = true) == true -> "STS30"
         name?.contains("STTS", ignoreCase = true) == true -> "STTS751"
-        name?.contains("Weather", ignoreCase = true) == true -> "Weather"
+        name?.contains("ATRH", ignoreCase = true) == true -> "ATRH"
         name?.contains("Rain", ignoreCase = true) == true -> "Rain"
         name?.contains("Wind", ignoreCase = true) == true -> "Wind"
         else -> "Unknown Device"
@@ -290,7 +291,7 @@ class SensorHubHandler(
         )
     }
 
-    private fun parseWeatherData(data: ByteArray, deviceAddress: String): SensorData? {
+    private fun parseATRHData(data: ByteArray, deviceAddress: String): SensorData? {
         if (data.size < 9) return null
         val nodeId = data[0].toUByte().toString()
         val temp = data[1].toInt() + data[2].toUByte().toInt() / 100.0
@@ -298,7 +299,7 @@ class SensorHubHandler(
         val lux = ((data[5].toInt() and 0xFF) shl 8) or (data[6].toInt() and 0xFF)
         val press = ((data[7].toInt() and 0xFF) shl 8) or (data[8].toInt() and 0xFF)
 
-        return SensorData.WeatherData(
+        return SensorData.ATRHData(
             deviceId = nodeId,
             temperature = String.format("%.2f", temp),
             humidity = String.format("%.2f", hum),
@@ -487,7 +488,7 @@ class SensorHubHandler(
             "TempLogger" -> parseTempLoggerData(data, deviceAddress, "")
             "STS30" -> parseSTS30Data(data, deviceAddress)
             "STTS751" -> parseSTTS751Data(data, deviceAddress)
-            "Weather" -> parseWeatherData(data, deviceAddress)
+            "ATRH" -> parseATRHData(data, deviceAddress)
             "Rain" -> parseRainData(data, deviceAddress)
             "Wind" -> parseWindData(data, deviceAddress)
             else -> null

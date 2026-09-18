@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
 import androidx.compose.ui.text.font.FontFamily.Companion.Monospace
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /* -------------------------------------------------------------
    3-D helpers
@@ -113,7 +114,7 @@ fun ChartScreen(
             sensorData is SensorData.SHT40Data -> "SHT40"
             sensorData is SensorData.STS30Data -> "STS30"
             sensorData is SensorData.STTS751Data -> "STTS751"
-            sensorData is SensorData.WeatherData -> "Weather"
+            sensorData is SensorData.ATRHData -> "ATRH"
             sensorData is SensorData.RainData -> "Rain"
             sensorData is SensorData.WindData -> "Wind"
             sensorData is SensorData.LIS3DHData -> "LIS3DH"
@@ -143,7 +144,7 @@ fun ChartScreen(
                     n.contains("TempLogger", true) || n.contains("TLOG", true) -> "TempLogger"
                     n.contains("Rain", true) -> "Rain"
                     n.contains("Wind", true) -> "Wind"
-                    n.contains("Weather", true) -> "Weather"
+                    n.contains("ATRH", true) -> "ATRH"
                     n.contains("Activity", true) || n.contains("LIS3DH", true) || n.contains("DataLogger", true) || n.contains("DLOG", true) -> "LIS3DH"
                     n.contains("AWS", true) -> "AWS"
                     else -> "Generic"
@@ -163,7 +164,7 @@ fun ChartScreen(
                     "AA:BB:CC:00:00:10" -> "TempLogger"
                     "AA:BB:CC:00:00:11" -> "STS30"
                     "AA:BB:CC:00:00:12" -> "STTS751"
-                    "AA:BB:CC:00:00:13" -> "Weather"
+                    "AA:BB:CC:00:00:13" -> "ATRH"
                     "AA:BB:CC:00:00:14" -> "Rain"
                     "AA:BB:CC:00:00:15" -> "Wind"
                     else -> "Generic"
@@ -180,7 +181,7 @@ fun ChartScreen(
         ?: (sensorData as? SensorData.SoilSensorData)?.temperature?.toFloatOrNull()
         ?: (sensorData as? SensorData.STS30Data)?.temperatureC?.toFloatOrNull()
         ?: (sensorData as? SensorData.STTS751Data)?.temperatureC?.toFloatOrNull()
-        ?: (sensorData as? SensorData.WeatherData)?.temperature?.toFloatOrNull()
+        ?: (sensorData as? SensorData.ATRHData)?.temperature?.toFloatOrNull()
         ?: (sensorData as? SensorData.AHT20Data)?.temperature?.toFloatOrNull()
         ?: (sensorData as? SensorData.BME680Data)?.temperature?.toFloatOrNull()
         ?: (sensorData as? SensorData.AWSData)?.temperature?.toFloatOrNull()
@@ -188,7 +189,7 @@ fun ChartScreen(
     val hum    = (sensorData as? SensorData.SHT40Data)?.humidity?.toFloatOrNull()
         ?: (sensorData as? SensorData.TempLoggerData)?.humidity?.toFloatOrNull()
         ?: (sensorData as? SensorData.Sen66Data)?.humidity?.toFloatOrNull()
-        ?: (sensorData as? SensorData.WeatherData)?.humidity?.toFloatOrNull()
+        ?: (sensorData as? SensorData.ATRHData)?.humidity?.toFloatOrNull()
         ?: (sensorData as? SensorData.AHT20Data)?.humidity?.toFloatOrNull()
         ?: (sensorData as? SensorData.BME680Data)?.humidity?.toFloatOrNull()
         ?: (sensorData as? SensorData.AWSData)?.humidity?.toFloatOrNull()
@@ -197,7 +198,7 @@ fun ChartScreen(
         ?: (sensorData as? SensorData.STTS751Data)?.temperatureF?.toFloatOrNull()
 
     val luxVeml = (sensorData as? SensorData.VEML7700Data)?.lux?.toFloatOrNull()
-        ?: (sensorData as? SensorData.WeatherData)?.lux?.toFloatOrNull()
+        ?: (sensorData as? SensorData.ATRHData)?.lux?.toFloatOrNull()
     val luxVcnl = (sensorData as? SensorData.VCNL4040Data)?.lux?.toFloatOrNull()
 
     val ahtTemp = (sensorData as? SensorData.AHT20Data)?.temperature?.toFloatOrNull()
@@ -205,7 +206,7 @@ fun ChartScreen(
     val bmeTemp = (sensorData as? SensorData.BME680Data)?.temperature?.toFloatOrNull()
     val bmeHum  = (sensorData as? SensorData.BME680Data)?.humidity?.toFloatOrNull()
     val bmePres = (sensorData as? SensorData.BME680Data)?.pressure?.toFloatOrNull()
-        ?: (sensorData as? SensorData.WeatherData)?.pressure?.toFloatOrNull()
+        ?: (sensorData as? SensorData.ATRHData)?.pressure?.toFloatOrNull()
 
     val rainfall = (sensorData as? SensorData.RainData)?.rainfall?.toFloatOrNull()
         ?: (sensorData as? SensorData.AWSData)?.rfCumulative?.toFloatOrNull()
@@ -328,8 +329,21 @@ fun ChartScreen(
 
     LaunchedEffect(Unit) {
         val act = ctx as? Activity
-        if (act != null && !vm.isScanning.value) {
+        if (act != null) {
+            vm.startScan(act)
             vm.startContinuousScan(act)
+        }
+    }
+
+    val updateQueue = remember(deviceAddress) { ConcurrentLinkedQueue<SensorData>() }
+
+    // Sync liveSensorData from targetDevice (device list flow) as dual-channel fallback
+    LaunchedEffect(targetDevice?.sensorData) {
+        targetDevice?.sensorData?.let { devData ->
+            if (!deviceAddress.isNullOrBlank() && !deviceAddress.startsWith("AA:BB:CC:00")) {
+                liveSensorData = devData
+                updateQueue.add(devData)
+            }
         }
     }
 
@@ -343,200 +357,239 @@ fun ChartScreen(
     }
 
     LaunchedEffect(deviceAddress) {
-        if (!deviceAddress.isNullOrBlank()) {
-            if (deviceAddress.startsWith("AA:BB:CC:00")) {
-                val mock = com.blesense.app.util.MockSensorUtils.getMockDataForAddress(deviceAddress)
-                if (mock != null) {
-                    val updateMock = {
-                        when (mock) {
-                            is SensorData.SHT40Data -> {
-                                updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                            }
-                            is SensorData.LIS3DHData -> {
-                                val vx = mock.x.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
-                                val vy = mock.y.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
-                                val vz = mock.z.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
-                                liveX = vx; liveY = vy; liveZ = vz
-                                updateHistory(accXH, vx); updateHistory(accYH, vy); updateHistory(accZH, vz)
-                            }
-                            is SensorData.SoilSensorData -> {
-                                if (timestamps.size >= 20) timestamps.removeAt(0)
-                                timestamps.add(fmt.format(Date()))
-                                updateHistory(soilMH, mock.moisture.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(soilTH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 1)
-                                updateHistory(soilNH, mock.nitrogen.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(soilPHist, mock.phosphorus.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(soilKHist, mock.potassium.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(soilECHist, mock.ec.toFloat() + (Random().nextFloat() - 0.5f) * 10)
-                                updateHistory(soilPHHist, mock.pH.toFloat() + (Random().nextFloat() - 0.5f) * 0.2f)
-                            }
-                            is SensorData.AmmoniaSensorData -> {
-                                val baseVal = mock.ammonia.replace(" ppm", "").trim().toFloatOrNull() ?: 12.5f
-                                updateHistory(ammoniaH, baseVal + (Random().nextFloat() - 0.5f) * 1.5f)
-                            }
-                            is SensorData.Sen66Data -> {
-                                updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(sen66Pm1H, mock.pm1.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f)
-                                updateHistory(sen66Pm25H, mock.pm25.toFloat() + (Random().nextFloat() - 0.5f) * 1f)
-                                updateHistory(sen66Pm4H, mock.pm4.toFloat() + (Random().nextFloat() - 0.5f) * 1.5f)
-                                updateHistory(sen66Pm10H, mock.pm10.toFloat() + (Random().nextFloat() - 0.5f) * 2f)
-                                updateHistory(sen66Co2H, mock.co2.toFloat() + (Random().nextFloat() - 0.5f) * 20f)
-                                updateHistory(sen66VocH, mock.voc.toFloat() + (Random().nextFloat() - 0.5f) * 10f)
-                                updateHistory(sen66NoxH, mock.nox.toFloat() + (Random().nextFloat() - 0.5f) * 2f)
-                            }
-                            is SensorData.VEML7700Data -> updateHistory(vemlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
-                            is SensorData.VCNL4040Data -> updateHistory(vcnlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
-                            is SensorData.AHT20Data -> {
-                                updateHistory(ahtTempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(ahtHumH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                            }
-                            is SensorData.BME680Data -> {
-                                updateHistory(bmeTempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(bmeHumH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(bmePresH, mock.pressure.toFloat() + (Random().nextFloat() - 0.5f) * 10)
-                            }
-                            is SensorData.TempLoggerData -> {
-                                updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                            }
-                            is SensorData.STS30Data -> {
-                                updateHistory(tempH, mock.temperatureC.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(tempFH, mock.temperatureF.toFloat() + (Random().nextFloat() - 0.5f) * 3.6f)
-                            }
-                            is SensorData.STTS751Data -> {
-                                updateHistory(tempH, mock.temperatureC.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(tempFH, mock.temperatureF.toFloat() + (Random().nextFloat() - 0.5f) * 3.6f)
-                            }
-                            is SensorData.WeatherData -> {
-                                updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                                updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
-                                updateHistory(vemlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
-                                updateHistory(bmePresH, mock.pressure.toFloat() + (Random().nextFloat() - 0.5f) * 10)
-                            }
-                            is SensorData.RainData -> updateHistory(rainfallH, mock.rainfall.toFloat() + (Random().nextFloat() * 0.5f))
-                            is SensorData.WindData -> updateHistory(windSpdH, mock.windSpeed.toFloat() + (Random().nextFloat() - 0.5f) * 2)
-                            else -> {}
+        if (deviceAddress.isNullOrBlank()) return@LaunchedEffect
+
+        // 1. Initial State / History Loading
+        if (deviceAddress.startsWith("AA:BB:CC:00")) {
+            val mock = MockSensorUtils.getMockDataForAddress(deviceAddress)
+            if (mock != null) {
+                val updateMock = {
+                    when (mock) {
+                        is SensorData.SHT40Data -> {
+                            updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
                         }
+                        is SensorData.LIS3DHData -> {
+                            val vx = mock.x.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
+                            val vy = mock.y.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
+                            val vz = mock.z.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f
+                            liveX = vx; liveY = vy; liveZ = vz
+                            updateHistory(accXH, vx); updateHistory(accYH, vy); updateHistory(accZH, vz)
+                        }
+                        is SensorData.SoilSensorData -> {
+                            if (timestamps.size >= 20) timestamps.removeAt(0)
+                            timestamps.add(fmt.format(Date()))
+                            updateHistory(soilMH, mock.moisture.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(soilTH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 1)
+                            updateHistory(soilNH, mock.nitrogen.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(soilPHist, mock.phosphorus.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(soilKHist, mock.potassium.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(soilECHist, mock.ec.toFloat() + (Random().nextFloat() - 0.5f) * 10)
+                            updateHistory(soilPHHist, mock.pH.toFloat() + (Random().nextFloat() - 0.5f) * 0.2f)
+                        }
+                        is SensorData.AmmoniaSensorData -> {
+                            val baseVal = mock.ammonia.replace(" ppm", "").trim().toFloatOrNull() ?: 12.5f
+                            updateHistory(ammoniaH, baseVal + (Random().nextFloat() - 0.5f) * 1.5f)
+                        }
+                        is SensorData.Sen66Data -> {
+                            updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(sen66Pm1H, mock.pm1.toFloat() + (Random().nextFloat() - 0.5f) * 0.5f)
+                            updateHistory(sen66Pm25H, mock.pm25.toFloat() + (Random().nextFloat() - 0.5f) * 1f)
+                            updateHistory(sen66Pm4H, mock.pm4.toFloat() + (Random().nextFloat() - 0.5f) * 1.5f)
+                            updateHistory(sen66Pm10H, mock.pm10.toFloat() + (Random().nextFloat() - 0.5f) * 2f)
+                            updateHistory(sen66Co2H, mock.co2.toFloat() + (Random().nextFloat() - 0.5f) * 20f)
+                            updateHistory(sen66VocH, mock.voc.toFloat() + (Random().nextFloat() - 0.5f) * 10f)
+                            updateHistory(sen66NoxH, mock.nox.toFloat() + (Random().nextFloat() - 0.5f) * 2f)
+                        }
+                        is SensorData.VEML7700Data -> updateHistory(vemlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
+                        is SensorData.VCNL4040Data -> updateHistory(vcnlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
+                        is SensorData.AHT20Data -> {
+                            updateHistory(ahtTempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(ahtHumH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                        }
+                        is SensorData.BME680Data -> {
+                            updateHistory(bmeTempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(bmeHumH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(bmePresH, mock.pressure.toFloat() + (Random().nextFloat() - 0.5f) * 10)
+                        }
+                        is SensorData.TempLoggerData -> {
+                            updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                        }
+                        is SensorData.STS30Data -> {
+                            updateHistory(tempH, mock.temperatureC.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(tempFH, mock.temperatureF.toFloat() + (Random().nextFloat() - 0.5f) * 3.6f)
+                        }
+                        is SensorData.STTS751Data -> {
+                            updateHistory(tempH, mock.temperatureC.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(tempFH, mock.temperatureF.toFloat() + (Random().nextFloat() - 0.5f) * 3.6f)
+                        }
+                        is SensorData.ATRHData -> {
+                            updateHistory(tempH, mock.temperature.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                            updateHistory(humH, mock.humidity.toFloat() + (Random().nextFloat() - 0.5f) * 5)
+                            updateHistory(vemlLuxH, mock.lux.toFloat() + (Random().nextFloat() - 0.5f) * 100)
+                            updateHistory(bmePresH, mock.pressure.toFloat() + (Random().nextFloat() - 0.5f) * 10)
+                        }
+                        is SensorData.RainData -> updateHistory(rainfallH, mock.rainfall.toFloat() + (Random().nextFloat() * 0.5f))
+                        is SensorData.WindData -> updateHistory(windSpdH, mock.windSpeed.toFloat() + (Random().nextFloat() - 0.5f) * 2)
+                        else -> {}
                     }
-                    repeat(20) { updateMock() }
-                    launch { while (isActive) { delay(2000); updateMock() } }
                 }
-            } else {
-                val existingHistory = vm.getHistory(deviceAddress)
-                if (existingHistory.isNotEmpty()) {
-                    existingHistory.forEach { entry ->
-                        when (val data = entry.sensorData) {
-                            is SensorData.SHT40Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) } }
-                            is SensorData.STS30Data -> { data.temperatureC.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.temperatureF.toFloatOrNull()?.let { updateHistory(tempFH, it) } }
-                            is SensorData.STTS751Data -> { data.temperatureC.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.temperatureF.toFloatOrNull()?.let { updateHistory(tempFH, it) } }
-                            is SensorData.WeatherData -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }; data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }; data.pressure.toFloatOrNull()?.let { updateHistory(bmePresH, it) } }
-                            is SensorData.RainData -> data.rainfall.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
-                            is SensorData.WindData -> data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
-                            is SensorData.AmmoniaSensorData -> data.ammonia.replace(" ppm", "").trim().toFloatOrNull()?.let { updateHistory(ammoniaH, it) }
-                            is SensorData.LIS3DHData -> { updateHistory(accXH, data.x.toFloatOrNull() ?: 0f); updateHistory(accYH, data.y.toFloatOrNull() ?: 0f); updateHistory(accZH, data.z.toFloatOrNull() ?: 0f) }
-                            is SensorData.Sen66Data -> { 
-                                data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }
-                                data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }
-                                data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }
-                                data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }
-                                data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }
-                                data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }
-                                data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }
-                                data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }
-                                data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
-                            }
-                            is SensorData.TempLoggerData -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) } }
-                            is SensorData.VEML7700Data -> data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }
-                            is SensorData.VCNL4040Data -> data.lux.toFloatOrNull()?.let { updateHistory(vcnlLuxH, it) }
-                            is SensorData.AHT20Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(ahtTempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(ahtHumH, it) } }
-                            is SensorData.BME680Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(bmeTempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(bmeHumH, it) }; data.pressure.toFloatOrNull()?.let { updateHistory(bmePresH, it) } }
-                            is SensorData.SoilSensorData -> { data.moisture.toFloatOrNull()?.let { updateHistory(soilMH, it) }; data.temperature.toFloatOrNull()?.let { updateHistory(soilTH, it) }; data.nitrogen.toFloatOrNull()?.let { updateHistory(soilNH, it) }; data.phosphorus.toFloatOrNull()?.let { updateHistory(soilPHist, it) }; data.potassium.toFloatOrNull()?.let { updateHistory(soilKHist, it) }; data.ec.toFloatOrNull()?.let { updateHistory(soilECHist, it) }; data.pH.toFloatOrNull()?.let { updateHistory(soilPHHist, it) }; timestamps.add(fmt.format(Date(entry.timestamp))) }
-                            is SensorData.AWSData -> {
-                                data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }
-                                data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }
-                                data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
-                                data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
-                            }
-                            else -> {}
+                repeat(20) { updateMock() }
+                launch { while (isActive) { delay(2000); updateMock() } }
+            }
+        } else {
+            val existingHistory = vm.getHistory(deviceAddress)
+            if (existingHistory.isNotEmpty()) {
+                existingHistory.forEach { entry ->
+                    when (val data = entry.sensorData) {
+                        is SensorData.SHT40Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) } }
+                        is SensorData.STS30Data -> { data.temperatureC.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.temperatureF.toFloatOrNull()?.let { updateHistory(tempFH, it) } }
+                        is SensorData.STTS751Data -> { data.temperatureC.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.temperatureF.toFloatOrNull()?.let { updateHistory(tempFH, it) } }
+                        is SensorData.ATRHData -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }; data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }; data.pressure.toFloatOrNull()?.let { updateHistory(bmePresH, it) } }
+                        is SensorData.RainData -> data.rainfall.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
+                        is SensorData.WindData -> data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
+                        is SensorData.AmmoniaSensorData -> data.ammonia.replace(" ppm", "").trim().toFloatOrNull()?.let { updateHistory(ammoniaH, it) }
+                        is SensorData.LIS3DHData -> { 
+                            val xV = data.x.toFloatOrNull() ?: 0f; val yV = data.y.toFloatOrNull() ?: 0f; val zV = data.z.toFloatOrNull() ?: 0f
+                            liveX = xV; liveY = yV; liveZ = zV
+                            updateHistory(accXH, xV); updateHistory(accYH, yV); updateHistory(accZH, zV) 
                         }
+                        is SensorData.Sen66Data -> { 
+                            data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }
+                            data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }
+                            data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }
+                            data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }
+                            data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }
+                            data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }
+                            data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }
+                            data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }
+                            data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
+                        }
+                        is SensorData.TempLoggerData -> { data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) } }
+                        is SensorData.VEML7700Data -> data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }
+                        is SensorData.VCNL4040Data -> data.lux.toFloatOrNull()?.let { updateHistory(vcnlLuxH, it) }
+                        is SensorData.AHT20Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(ahtTempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(ahtHumH, it) } }
+                        is SensorData.BME680Data -> { data.temperature.toFloatOrNull()?.let { updateHistory(bmeTempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(bmeHumH, it) }; data.pressure.toFloatOrNull()?.let { updateHistory(bmePresH, it) } }
+                        is SensorData.SoilSensorData -> { data.moisture.toFloatOrNull()?.let { updateHistory(soilMH, it) }; data.temperature.toFloatOrNull()?.let { updateHistory(soilTH, it) }; data.nitrogen.toFloatOrNull()?.let { updateHistory(soilNH, it) }; data.phosphorus.toFloatOrNull()?.let { updateHistory(soilPHist, it) }; data.potassium.toFloatOrNull()?.let { updateHistory(soilKHist, it) }; data.ec.toFloatOrNull()?.let { updateHistory(soilECHist, it) }; data.pH.toFloatOrNull()?.let { updateHistory(soilPHHist, it) }; timestamps.add(fmt.format(Date(entry.timestamp))) }
+                        is SensorData.AWSData -> {
+                            data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }
+                            data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }
+                            data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
+                            data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
+                        }
+                        else -> {}
                     }
                 }
             }
         }
 
-        val updateQueue = java.util.concurrent.ConcurrentLinkedQueue<SensorData>()
+        // 2. Real-time Pipeline flusher
         launch {
             while (isActive) {
-                delay(60) 
+                delay(60) // 16Hz UI Refresh for smooth movement
                 val batch = mutableListOf<SensorData>()
-                while (true) { batch.add(updateQueue.poll() ?: break) }
+                var p = updateQueue.poll()
+                while (p != null) {
+                    batch.add(p)
+                    p = updateQueue.poll()
+                }
+
                 if (batch.isNotEmpty()) {
                     flowState.value = "Data received at: ${SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())}"
+                    
+                    var lastData: SensorData? = null
+
                     batch.forEach { data ->
+                        lastData = data
                         when (data) {
+                            is SensorData.LIS3DHData -> {
+                                val xVal = data.x.toFloatOrNull() ?: 0f
+                                val yVal = data.y.toFloatOrNull() ?: 0f
+                                val zVal = data.z.toFloatOrNull() ?: 0f
+                                liveX = xVal
+                                liveY = yVal
+                                liveZ = zVal
+                                updateHistory(accXH, xVal)
+                                updateHistory(accYH, yVal)
+                                updateHistory(accZH, zVal)
+                            }
                             is SensorData.SHT40Data -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
                             is SensorData.STS30Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
                             is SensorData.STTS751Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
-                            is SensorData.WeatherData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f); updateHistory(vemlLuxH, data.lux.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
+                            is SensorData.ATRHData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f); updateHistory(vemlLuxH, data.lux.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
                             is SensorData.RainData -> data.rainfall.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
                             is SensorData.WindData -> data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
                             is SensorData.AmmoniaSensorData -> data.ammonia.replace(" ppm", "").trim().toFloatOrNull()?.let { updateHistory(ammoniaH, it) }
-                            is SensorData.LIS3DHData -> { val xVal = data.x.toFloatOrNull() ?: 0f; val yVal = data.y.toFloatOrNull() ?: 0f; val zVal = data.z.toFloatOrNull() ?: 0f; liveX = xVal; liveY = yVal; liveZ = zVal; updateHistory(accXH, xVal); updateHistory(accYH, yVal); updateHistory(accZH, zVal) }
-                            is SensorData.SoilSensorData -> { if (timestamps.size >= 20) timestamps.removeAt(0); timestamps.add(fmt.format(Date())); updateHistory(soilTH, data.temperature.toFloatOrNull()?:0f); updateHistory(soilMH, data.moisture.toFloatOrNull()?:0f); updateHistory(soilNH, data.nitrogen.toFloatOrNull()?:0f); updateHistory(soilPHist, data.phosphorus.toFloatOrNull()?:0f); updateHistory(soilKHist, data.potassium.toFloatOrNull()?:0f); updateHistory(soilECHist, data.ec.toFloatOrNull()?:0f); updateHistory(soilPHHist, data.pH.toFloatOrNull()?:0f) }
+                            is SensorData.SoilSensorData -> { 
+                                if (timestamps.size >= 20) timestamps.removeAt(0)
+                                timestamps.add(fmt.format(Date()))
+                                updateHistory(soilTH, data.temperature.toFloatOrNull()?:0f); updateHistory(soilMH, data.moisture.toFloatOrNull()?:0f); updateHistory(soilNH, data.nitrogen.toFloatOrNull()?:0f); updateHistory(soilPHist, data.phosphorus.toFloatOrNull()?:0f); updateHistory(soilKHist, data.potassium.toFloatOrNull()?:0f); updateHistory(soilECHist, data.ec.toFloatOrNull()?:0f); updateHistory(soilPHHist, data.pH.toFloatOrNull()?:0f) 
+                            }
                             is SensorData.VEML7700Data -> data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }
                             is SensorData.VCNL4040Data -> data.lux.toFloatOrNull()?.let { updateHistory(vcnlLuxH, it) }
                             is SensorData.AHT20Data -> { updateHistory(ahtTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(ahtHumH, data.humidity.toFloatOrNull()?:0f) }
                             is SensorData.BME680Data -> { updateHistory(bmeTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(bmeHumH, data.humidity.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
                             is SensorData.Sen66Data -> { 
-                                updateHistory(tempH, data.temperature.toFloatOrNull()?:0f)
-                                updateHistory(humH, data.humidity.toFloatOrNull()?:0f)
-                                data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }
-                                data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }
-                                data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }
-                                data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }
-                                data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }
-                                data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }
-                                data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
+                                updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f)
+                                data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }; data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }; data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }; data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }; data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }; data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }; data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
                             }
                             is SensorData.TempLoggerData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
-                            is SensorData.DataLoggerData -> { val points = data.getParsedPoints(); if (points.isNotEmpty()) { val last = points.last(); liveX = last.first.toByte().toFloat()/6.4f; liveY = last.second.toByte().toFloat()/6.4f; liveZ = last.third.toByte().toFloat()/6.4f }; updateHistoryBatch(accXH, points.map { it.first.toByte().toFloat()/6.4f }); updateHistoryBatch(accYH, points.map { it.second.toByte().toFloat()/6.4f }); updateHistoryBatch(accZH, points.map { it.third.toByte().toFloat()/6.4f }) }
+                            is SensorData.DataLoggerData -> { 
+                                val points = data.getParsedPoints()
+                                if (points.isNotEmpty()) { 
+                                    val last = points.last()
+                                    liveX = last.first.toByte().toFloat()/6.4f; liveY = last.second.toByte().toFloat()/6.4f; liveZ = last.third.toByte().toFloat()/6.4f 
+                                }
+                                updateHistoryBatch(accXH, points.map { it.first.toByte().toFloat()/6.4f }); updateHistoryBatch(accYH, points.map { it.second.toByte().toFloat()/6.4f }); updateHistoryBatch(accZH, points.map { it.third.toByte().toFloat()/6.4f }) 
+                            }
                             is SensorData.AWSData -> {
-                                data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }
-                                data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }
-                                data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
-                                data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
+                                data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }; data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }; data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
                             }
                             else -> {}
                         }
                     }
+
+                    // Flush UI state once per batch to avoid UI saturation
+                    lastData?.let { liveSensorData = it }
                 }
             }
         }
+
+        // Collection loop (matching reference F:\)
         vm.sensorDataStream.collect { data ->
-            val isOur = when (data) {
-                is SensorData.SHT40Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.STS30Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.STTS751Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.LIS3DHData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.SoilSensorData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.AmmoniaSensorData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.VEML7700Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.VCNL4040Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.AHT20Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.BME680Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.WeatherData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.RainData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.WindData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.Sen66Data -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.TempLoggerData -> data.deviceAddress.equals(deviceAddress, true)
-                is SensorData.AWSData -> data.deviceAddress.equals(deviceAddress, true)
-                else -> true
+            val dataAddr = when (data) {
+                is SensorData.SHT40Data -> data.deviceAddress
+                is SensorData.STS30Data -> data.deviceAddress
+                is SensorData.STTS751Data -> data.deviceAddress
+                is SensorData.LIS3DHData -> data.deviceAddress
+                is SensorData.SoilSensorData -> data.deviceAddress
+                is SensorData.AmmoniaSensorData -> data.deviceAddress
+                is SensorData.VEML7700Data -> data.deviceAddress
+                is SensorData.VCNL4040Data -> data.deviceAddress
+                is SensorData.AHT20Data -> data.deviceAddress
+                is SensorData.BME680Data -> data.deviceAddress
+                is SensorData.ATRHData -> data.deviceAddress
+                is SensorData.RainData -> data.deviceAddress
+                is SensorData.WindData -> data.deviceAddress
+                is SensorData.Sen66Data -> data.deviceAddress
+                is SensorData.TempLoggerData -> data.deviceAddress
+                is SensorData.AWSData -> data.deviceAddress
+                is SensorData.DataLoggerData -> data.deviceAddress
+                else -> null
             }
-            if (isOur || deviceAddress.isNullOrBlank()) { 
-                liveSensorData = data
-                updateQueue.add(data) 
+
+            val isOur = if (deviceAddress.isNullOrBlank()) true
+            else if (dataAddr == null) false
+            else {
+                dataAddr.equals(deviceAddress, true) ||
+                deviceAddress.startsWith(dataAddr, true) ||
+                dataAddr.startsWith(deviceAddress, true)
+            }
+
+            if (isOur) {
+                updateQueue.add(data)
             }
         }
     }
@@ -650,7 +703,7 @@ fun ChartScreen(
                                 item { WindDirectionVisualizer(windDir ?: 0f, windSpd ?: 0f, cardBg, txt, dark) }
                                 item { SensorGraphCard(windSpdLabel, windSpd, windSpdH, Color(0xFF009688), cardBg, txt, txt2, currentTxt, naTxt, dark) }
                             }
-                            "Weather" -> {
+                            "ATRH" -> {
                                 item { SensorGraphCard(tempLabel, temp, tempH, Color(0xFFE53935), cardBg, txt, txt2, currentTxt, naTxt, dark) }
                                 item { SensorGraphCard(humLabel, hum, humH, Color(0xFF1976D2), cardBg, txt, txt2, currentTxt, naTxt, dark) }
                                 item { SensorGraphCard(luxLabel, luxVeml, vemlLuxH, Color(0xFFFFB300), cardBg, txt, txt2, currentTxt, naTxt, dark) }

@@ -75,10 +75,9 @@ fun MainScreen(
                     name.contains("TLOG", true) ||
                     name.contains("STS30", true) ||
                     name.contains("STTS751", true) ||
-                    name.contains("Weather", true) ||
+                    name.contains("ATRH", true) ||
                     name.contains("Rain", true) ||
-                    name.contains("Wind", true) ||
-                    name.contains("Weather", true)
+                    name.contains("Wind", true)
 
             val hasSensorData = sensorData != null
 
@@ -114,7 +113,7 @@ fun MainScreen(
                     "TempLogger" -> dev.sensorData is SensorData.TempLoggerData || dev.name.contains("TempLogger", true) || dev.name.contains("TLOG", true)
                     "STS30" -> dev.sensorData is SensorData.STS30Data || dev.name.contains("STS30", true)
                     "STTS751" -> dev.sensorData is SensorData.STTS751Data || dev.name.contains("STTS", true)
-                    "Weather" -> dev.sensorData is SensorData.WeatherData || dev.name.contains("Weather", true)
+                    "ATRH" -> dev.sensorData is SensorData.ATRHData || dev.name.contains("ATRH", true)
                     "Rain" -> dev.sensorData is SensorData.RainData || dev.name.contains("Rain", true)
                     "Wind" -> dev.sensorData is SensorData.WindData || dev.name.contains("Wind", true)
                     else -> true
@@ -617,7 +616,7 @@ private fun SensorFilterRow(
     val tags = listOf(
         "All", "SHT40", "LIS3DH", "Soil Sensor",
         "Ammonia Sensor", "sen66", "VEML7700", "VCNL4040",
-        "AHT20", "BME680", "TempLogger", "STS30", "STTS751", "Weather", "Rain", "Wind"
+        "AHT20", "BME680", "TempLogger", "STS30", "STTS751", "ATRH", "Rain", "Wind"
     )
 
     Row(
@@ -720,8 +719,8 @@ fun BluetoothDeviceCard(
             data is SensorData.WindData || (data == null && name.contains("Wind", ignoreCase = true)) ->
                 Triple(if (isDarkMode) Color(0xFF162A36) else Color(0xFFE0F2FE), Color(0xFF0284C7), R.drawable.ic_wind)
 
-            // Weather Multi-Station
-            data is SensorData.WeatherData || (data == null && name.contains("Weather", ignoreCase = true)) ->
+            // ATRH Multi-Station
+            data is SensorData.ATRHData || (data == null && name.contains("ATRH", ignoreCase = true)) ->
                 Triple(if (isDarkMode) Color(0xFF182238) else Color(0xFFEFF6FF), Color(0xFF2563EB), R.drawable.ic_thermometer)
 
             else ->
@@ -746,7 +745,7 @@ fun BluetoothDeviceCard(
                     device.sensorData is SensorData.TempLoggerData || device.name.contains("TempLogger", ignoreCase = true) || device.name.contains("TLOG", ignoreCase = true) -> "TempLogger"
                     device.sensorData is SensorData.STS30Data || device.name.contains("STS30", ignoreCase = true) -> "STS30"
                     device.sensorData is SensorData.STTS751Data || device.name.contains("STTS", ignoreCase = true) -> "STTS751"
-                    device.sensorData is SensorData.WeatherData || device.name.contains("Weather", ignoreCase = true) -> "Weather"
+                    device.sensorData is SensorData.ATRHData || device.name.contains("ATRH", ignoreCase = true) -> "ATRH"
                     device.sensorData is SensorData.RainData || device.name.contains("Rain", ignoreCase = true) -> "Rain"
                     device.sensorData is SensorData.WindData || device.name.contains("Wind", ignoreCase = true) -> "Wind"
                     device.sensorData is SensorData.LIS3DHData || device.name.contains("Activity", ignoreCase = true) || device.name.contains("LIS3DH", ignoreCase = true) -> "LIS3DH"

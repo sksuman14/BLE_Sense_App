@@ -26,7 +26,7 @@ sealed class SensorData {
         val deviceAddress: String = ""
     ) : SensorData()
 
-    data class WeatherData(
+    data class ATRHData(
         override val deviceId: String,
         val temperature: String,
         val humidity: String,

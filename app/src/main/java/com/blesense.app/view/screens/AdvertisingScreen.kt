@@ -247,7 +247,7 @@ fun AdvertisingDataScreen(
                                     pressure = String.format(Locale.US, "%.1f", (curPress + (rand.nextFloat() - 0.5f) * 2f).coerceIn(950f, 1050f))
                                 )
                             }
-                            is SensorData.WeatherData -> {
+                            is SensorData.ATRHData -> {
                                 val curTemp = m.temperature.replace(",", ".").toFloatOrNull() ?: 24.0f
                                 val curHum = m.humidity.replace(",", ".").toFloatOrNull() ?: 50.0f
                                 val curLux = m.lux.replace(",", ".").toFloatOrNull() ?: 1500f
@@ -342,7 +342,7 @@ fun AdvertisingDataScreen(
                 is SensorData.Sen66Data -> data.deviceAddress.equals(deviceAddress, true) || deviceAddress.startsWith(data.deviceAddress, true) || data.deviceAddress.startsWith(deviceAddress, true)
                 is SensorData.RainData -> data.deviceAddress.equals(deviceAddress, true) || deviceAddress.startsWith(data.deviceAddress, true) || data.deviceAddress.startsWith(deviceAddress, true)
                 is SensorData.WindData -> data.deviceAddress.equals(deviceAddress, true) || deviceAddress.startsWith(data.deviceAddress, true) || data.deviceAddress.startsWith(deviceAddress, true)
-                is SensorData.WeatherData -> data.deviceAddress.equals(deviceAddress, true) || deviceAddress.startsWith(data.deviceAddress, true) || data.deviceAddress.startsWith(deviceAddress, true)
+                is SensorData.ATRHData -> data.deviceAddress.equals(deviceAddress, true) || deviceAddress.startsWith(data.deviceAddress, true) || data.deviceAddress.startsWith(deviceAddress, true)
                 else -> false
             }
             if (isOurDevice) {
@@ -397,7 +397,7 @@ fun AdvertisingDataScreen(
             when (val sd = activeSensorData) {
                 is SensorData.VEML7700Data -> sd.lux.toFloatOrNull() ?: 0f
                 is SensorData.VCNL4040Data -> sd.lux.toFloatOrNull() ?: 0f
-                is SensorData.WeatherData  -> sd.lux.toFloatOrNull() ?: 0f
+                is SensorData.ATRHData  -> sd.lux.toFloatOrNull() ?: 0f
                 else -> 0f
             }
         }
@@ -519,7 +519,7 @@ fun AdvertisingDataScreen(
                     "NOx"       to sd.nox.ifEmpty { "0" },
                     "Air Quality" to sd.airQualityIndex.ifEmpty { "0" }
                 )
-                is SensorData.WeatherData -> listOf(
+                is SensorData.ATRHData -> listOf(
                     "Device ID" to sd.deviceId,
                     advertisingText.temperature to "${sd.temperature}°C",
                     advertisingText.humidity    to "${sd.humidity}%",
@@ -555,7 +555,10 @@ fun AdvertisingDataScreen(
     }
 
     DisposableEffect(navController) {
-        onDispose { viewModel.stopScan(); viewModel.clearDevices() }
+        onDispose {
+            // We do not stop scanning or clear devices on dispose to ensure
+            // that navigating to child screens (like ChartScreen) maintains continuous live data streaming.
+        }
     }
 
     // ── Root layout ────────────────────────────────────────────────────────
@@ -603,12 +606,12 @@ fun AdvertisingDataScreen(
                     advertisingText = advertisingText
                 )
 
-                // 1. General sensor data cards (Device ID, etc.) - suppressed for SEN66, Soil, and Weather
-                if (activeSensorData !is SensorData.Sen66Data && activeSensorData !is SensorData.SoilSensorData && activeSensorData !is SensorData.WeatherData) {
+                        // 1. General sensor data cards (Device ID, etc.) - suppressed for SEN66, Soil, and ATRH
+                if (activeSensorData !is SensorData.Sen66Data && activeSensorData !is SensorData.SoilSensorData && activeSensorData !is SensorData.ATRHData) {
                     ResponsiveDataCards(
                         data            = displayData,
                         advertisingText = advertisingText,
-                        forceLuxAsCard  = activeSensorData is SensorData.WeatherData
+                        forceLuxAsCard  = activeSensorData is SensorData.ATRHData
                     )
                 }
 
@@ -645,10 +648,10 @@ fun AdvertisingDataScreen(
                     )
                 }
 
-                // 6. Weather Station Creative Modern Deck
-                if (activeSensorData is SensorData.WeatherData) {
-                    WeatherStationDisplay(
-                        sensorData = activeSensorData as SensorData.WeatherData
+                // 6. ATRH Station Creative Modern Deck
+                if (activeSensorData is SensorData.ATRHData) {
+                    ATRHStationDisplay(
+                        sensorData = activeSensorData as SensorData.ATRHData
                     )
                 }
 
@@ -2455,11 +2458,11 @@ private fun SoilSensorDisplayLightPreview() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// WEATHER STATION CREATIVE MODERN DECK (Atmospheric Vista & Bento Grid Deck)
+// ATRH STATION CREATIVE MODERN DECK (Atmospheric Vista & Bento Grid Deck)
 // ══════════════════════════════════════════════════════════════════════════════
 @Composable
-fun WeatherStationDisplay(
-    sensorData: SensorData.WeatherData,
+fun ATRHStationDisplay(
+    sensorData: SensorData.ATRHData,
     modifier: Modifier = Modifier
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
@@ -2473,26 +2476,26 @@ fun WeatherStationDisplay(
     val animatedTemp by animateFloatAsState(
         targetValue = rawTemp,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "weatherTemp"
+        label = "atrhTemp"
     )
     val animatedHum by animateFloatAsState(
         targetValue = rawHum,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "weatherHum"
+        label = "atrhHum"
     )
     val animatedPress by animateFloatAsState(
         targetValue = rawPress,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "weatherPress"
+        label = "atrhPress"
     )
     val animatedLux by animateFloatAsState(
         targetValue = rawLux,
         animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "weatherLux"
+        label = "atrhLux"
     )
 
     // Fluid wave and ambient glow phase animations
-    val infiniteTransition = rememberInfiniteTransition(label = "weatherWaveTransition")
+    val infiniteTransition = rememberInfiniteTransition(label = "atrhWaveTransition")
     val wavePhase by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = (2f * PI).toFloat(),
@@ -2509,7 +2512,7 @@ fun WeatherStationDisplay(
             animation = tween(2200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "weatherPulse"
+        label = "atrhPulse"
     )
 
     // ── Meteorological Analytics Calculations ──
@@ -2529,7 +2532,7 @@ fun WeatherStationDisplay(
     val humDev = kotlin.math.abs(animatedHum - 50f) / 40f
     val comfortScore = ((1f - (tempDev * 0.5f + humDev * 0.5f).coerceIn(0f, 1f)) * 100f).roundToInt().coerceIn(15, 100)
 
-    // Dynamic Weather Condition Synthesis
+    // Dynamic ATRH Condition Synthesis
     val (conditionTitle, conditionColor, conditionIcon) = when {
         animatedHum >= 85f && animatedPress < 1008f -> Triple("STORMY / RAIN RISK", Color(0xFF6366F1), Icons.Default.Cloud)
         animatedHum >= 75f                           -> Triple("HUMID & OVERCAST",   Color(0xFF38BDF8), Icons.Default.Cloud)
@@ -2547,7 +2550,7 @@ fun WeatherStationDisplay(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // 1. Atmospheric Vista Hero Deck
-        WeatherHeroVistaCard(
+        ATRHHeroVistaCard(
             tempC = animatedTemp,
             tempF = tempF,
             feelsLike = feelsLike,
@@ -2562,7 +2565,7 @@ fun WeatherStationDisplay(
         )
 
         // 2. 2x2 Bento Grid: 4 Bespoke Environmental Pillars
-        WeatherBentoGrid(
+        ATRHBentoGrid(
             tempC = animatedTemp,
             tempF = tempF,
             humidity = animatedHum,
@@ -2587,7 +2590,7 @@ fun WeatherStationDisplay(
  * 1. Top Atmospheric Vista Hero Card: Big typographic temperature, sky ambient vista, and biometeorology chips.
  */
 @Composable
-private fun WeatherHeroVistaCard(
+private fun ATRHHeroVistaCard(
     tempC: Float,
     tempF: Float,
     feelsLike: Float,
@@ -2696,7 +2699,7 @@ private fun WeatherHeroVistaCard(
                     }
                 }
 
-                // Main Reading Row: Giant Temperature & Radiant Weather Glyph
+                // Main Reading Row: Giant Temperature & Radiant ATRH Glyph
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2755,7 +2758,7 @@ private fun WeatherHeroVistaCard(
                         }
                     }
 
-                    // Radiant Celestial Weather Glyph
+                    // Radiant Celestial ATRH Glyph
                     Box(
                         modifier = Modifier
                             .size(72.dp)
@@ -2853,7 +2856,7 @@ private fun BiometeorologyChip(
  * 2. 2x2 Bento Matrix: 4 Bespoke Pillars (Thermal, Hydrometric, Barometric, Photometric).
  */
 @Composable
-private fun WeatherBentoGrid(
+private fun ATRHBentoGrid(
     tempC: Float,
     tempF: Float,
     humidity: Float,
@@ -3666,12 +3669,12 @@ private fun AtmosphericAnalyticsDeck(
     }
 }
 
-@Preview(name = "Weather Station - Dark Mode", showBackground = true, backgroundColor = 0xFF0D1117)
+@Preview(name = "ATRH Station - Dark Mode", showBackground = true, backgroundColor = 0xFF0D1117)
 @Composable
-private fun WeatherStationDisplayDarkPreview() {
+private fun ATRHStationDisplayDarkPreview() {
     MaterialTheme {
-        WeatherStationDisplay(
-            sensorData = SensorData.WeatherData(
+        ATRHStationDisplay(
+            sensorData = SensorData.ATRHData(
                 deviceId = "13",
                 temperature = "24.00",
                 humidity = "50.00",
@@ -3682,12 +3685,12 @@ private fun WeatherStationDisplayDarkPreview() {
     }
 }
 
-@Preview(name = "Weather Station - Light Mode", showBackground = true, backgroundColor = 0xFFF8FAFC)
+@Preview(name = "ATRH Station - Light Mode", showBackground = true, backgroundColor = 0xFFF8FAFC)
 @Composable
-private fun WeatherStationDisplayLightPreview() {
+private fun ATRHStationDisplayLightPreview() {
     MaterialTheme {
-        WeatherStationDisplay(
-            sensorData = SensorData.WeatherData(
+        ATRHStationDisplay(
+            sensorData = SensorData.ATRHData(
                 deviceId = "13",
                 temperature = "24.00",
                 humidity = "50.00",
@@ -4970,7 +4973,7 @@ private fun WindVisualizerLightPreview() {
 }
 
 @Composable
-fun WeatherVisualSummary(temp: Float, hum: Float, press: Float, lux: Float) {
+fun ATRHVisualSummary(temp: Float, hum: Float, press: Float, lux: Float) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val CardDark = if (isDarkMode) BleSenseColors.CardDark else BleSenseColors.LightSurface
     val DividerDark = if (isDarkMode) BleSenseColors.BorderDark else BleSenseColors.LightBorder
@@ -4984,17 +4987,17 @@ fun WeatherVisualSummary(temp: Float, hum: Float, press: Float, lux: Float) {
             }
             Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                WeatherMetric("🌡️", "${temp.toInt()}°C", "Temp")
-                WeatherMetric("💧", "${hum.toInt()}%", "Hum")
-                WeatherMetric("⏲️", "${press.toInt()}hPa", "Press")
-                WeatherMetric("☀️", "${lux.toInt()}lx", "Lux")
+                ATRHMetric("🌡️", "${temp.toInt()}°C", "Temp")
+                ATRHMetric("💧", "${hum.toInt()}%", "Hum")
+                ATRHMetric("⏲️", "${press.toInt()}hPa", "Press")
+                ATRHMetric("☀️", "${lux.toInt()}lx", "Lux")
             }
         }
     }
 }
 
 @Composable
-private fun WeatherMetric(icon: String, value: String, label: String) {
+private fun ATRHMetric(icon: String, value: String, label: String) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val TextPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
     val TextSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
@@ -5100,7 +5103,7 @@ private fun exportDataToCSV(context: Context, uri: Uri, viewModel: BluetoothScan
                         is SensorData.BME680Data        -> header.append("Temperature (°C),Humidity (%),Pressure (hPa)")
                         is SensorData.VEML7700Data      -> header.append("Light (LUX)")
                         is SensorData.VCNL4040Data      -> header.append("Light (LUX)")
-                        is SensorData.WeatherData       -> header.append("Temperature (°C),Humidity (%),Light (LUX),Pressure (hPa)")
+                        is SensorData.ATRHData       -> header.append("Temperature (°C),Humidity (%),Light (LUX),Pressure (hPa)")
                         is SensorData.RainData          -> header.append("Rainfall (mm)")
                         is SensorData.WindData          -> header.append("Wind Speed (m/s),Wind Direction (°)")
                         else -> {}
@@ -5122,7 +5125,7 @@ private fun exportDataToCSV(context: Context, uri: Uri, viewModel: BluetoothScan
                             is SensorData.BME680Data        -> { row.append("${sd.temperature},${sd.humidity},${sd.pressure}"); mfgPayload = extractExactMfgData(entry.rawData, 9) }
                             is SensorData.VEML7700Data      -> { row.append("${sd.lux}"); mfgPayload = extractExactMfgData(entry.rawData, 8) }
                             is SensorData.VCNL4040Data      -> { row.append("${sd.lux}"); mfgPayload = extractExactMfgData(entry.rawData, 8) }
-                            is SensorData.WeatherData       -> { row.append("${sd.temperature},${sd.humidity},${sd.lux},${sd.pressure}"); mfgPayload = extractExactMfgData(entry.rawData, 12) }
+                            is SensorData.ATRHData       -> { row.append("${sd.temperature},${sd.humidity},${sd.lux},${sd.pressure}"); mfgPayload = extractExactMfgData(entry.rawData, 12) }
                             is SensorData.RainData          -> { row.append(sd.rainfall); mfgPayload = extractExactMfgData(entry.rawData, 8) }
                             is SensorData.WindData          -> { row.append("${sd.windSpeed},${sd.windDirection}"); mfgPayload = extractExactMfgData(entry.rawData, 8) }
                             else -> {}

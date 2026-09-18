@@ -31,15 +31,15 @@ graph TD
 
 ## 3. Technical Specifications
 ### 2.1 Environmental Sensors
-*   **Temperature**: Range 0-50°C (Visualized with dynamic color coding: Blue < 15°C, Green 15-25°C, Red > 25°C).
+*   **Temperature**: Range 0-50°C (Visualized with dynamic color coding: Blue < 15°C, Green 15-28°C, Orange 28-38°C, Red > 38°C).
 *   **Humidity**: 0-100% relative humidity (Visualized with an animated water gauge).
 *   **Anemometer**: Measures wind speed in m/s (App converts this to km/h for display).
 *   **Wind Vane**: 360° direction sensing with 8-point compass interpolation (N, NE, E, SE, S, SW, W, NW).
 *   **Rain Gauge**: Tracks cumulative RF (Rainfall) levels.
 
 ### 2.2 Power Management
-*   **Battery Voltage**: Monitoring of internal Li-ion/Lead-acid storage.
-*   **Solar Voltage**: Monitoring of photovoltaic input to ensure charging efficiency.
+*   **Battery Voltage**: Real-time monitoring of internal storage (Precise to 0.1V).
+*   **Solar Voltage**: Monitoring of photovoltaic input (Precise to 0.1V).
 
 ---
 
@@ -56,7 +56,16 @@ The app provides instant feedback on the hardware status:
 *   **Not Ready (Orange)**: Indicates the device is initializing (Internal Status Byte 99).
 *   **Error State (Red)**: Displays a count of active system errors.
     *   The system supports **16 individual error slots** (error1 through error16).
-    *   Specific errors are listed in the "System Diagnostics" card if they occur (e.g., sensor timeout, low battery).
+    *   **Common Error Descriptions**:
+        *   `ATRH Sensor Error` (1)
+        *   `Wind Sensor Error` (2)
+        *   `Tilt Sensor Error` (3)
+        *   `Flash Error` (4)
+        *   `Network Error` (5)
+        *   `Low Battery` (6)
+        *   `SDCard Error` (9)
+        *   `Rain Gauge Error` (10)
+        *   `MQTT/HTTP Upload Errors` (21-26)
 
 ### 3.3 Live Hub & Visualization
 Tap the **Analytics Icon** to open the visual dashboard:
