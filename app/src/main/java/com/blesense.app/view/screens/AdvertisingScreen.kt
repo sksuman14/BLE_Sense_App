@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -73,6 +74,7 @@ import com.blesense.app.model.SensorData
 import com.blesense.app.viewmodel.BluetoothScanViewModel
 import com.blesense.app.util.ThemeManager
 import com.blesense.app.ui.theme.BleSenseColors
+import com.blesense.app.view.components.StandardScreenHeaderBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
@@ -725,7 +727,6 @@ fun AdvertisingDataScreen(
 // ══════════════════════════════════════════════════════════════════════════════
 // Top App Bar
 // ══════════════════════════════════════════════════════════════════════════════
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AdvertisingTopBar(
     deviceName: String,
@@ -735,78 +736,76 @@ private fun AdvertisingTopBar(
     viewModel: BluetoothScanViewModel
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-    val BgDark = if (isDarkMode) BleSenseColors.BackgroundDark else BleSenseColors.LightBackground
-    val SurfaceDark = if (isDarkMode) BleSenseColors.SurfaceDark else BleSenseColors.LightSurface
-    val TextPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
-    val TextSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF0F172A)
+    val textSecondary = if (isDarkMode) Color(0xFFA1A1AA) else Color(0xFF64748B)
 
-    Surface(
-        color     = SurfaceDark,
-        tonalElevation = 0.dp,
-        modifier  = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Back button
-            IconButton(onClick = { viewModel.stopScan(); navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-            }
-
-            Spacer(modifier = Modifier.width(4.dp))
-
-            // Device icon + title
-            Box(
+            IconButton(
+                onClick = {
+                    viewModel.stopScan()
+                    navController.popBackStack()
+                },
                 modifier = Modifier
-                    .size(34.dp)
-                    .background(GreenMuted, RoundedCornerShape(10.dp)),
-                contentAlignment = Alignment.Center
+                    .size(42.dp)
+                    .background(if (isDarkMode) Color(0xFF1E293B).copy(alpha = 0.5f) else Color.White, CircleShape)
+                    .border(1.dp, if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color(0xFFE2EEF9), CircleShape)
             ) {
-                Icon(Icons.Default.Sensors, null, tint = GreenAccent, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textPrimary, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            // Title & Subtitle
+            Column {
                 Text(
-                    text = deviceName.ifEmpty { "Unknown Device" },
-                    fontSize = 14.sp,
+                    text = deviceName.ifEmpty { "Unknown Sensor" },
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = textPrimary
                 )
                 Text(
                     text = deviceAddress,
-                    fontSize = 10.sp,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontSize = 11.sp,
+                    color = textSecondary
                 )
             }
+        }
 
-            // Alarm indicator
+        // Actions
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (isAlarmActive) {
                 Box(
                     modifier = Modifier
-                        .background(RedAccent.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .background(Color(0xFFFEE2E2), CircleShape)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.Default.Warning, null, tint = RedAccent, modifier = Modifier.size(12.dp))
-                        Text("ALARM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RedAccent)
+                        Icon(Icons.Default.Warning, null, tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                        Text("ALARM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
                     }
                 }
-                Spacer(modifier = Modifier.width(6.dp))
             }
 
-            // Graph button
-            IconButton(onClick = { navController.navigate("chart_screen/${Uri.encode(deviceAddress)}") }) {
-                Icon(Icons.Default.BarChart, contentDescription = "Graph", tint = GreenAccent)
+            IconButton(
+                onClick = { navController.navigate("chart_screen/${Uri.encode(deviceAddress)}") },
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(if (isDarkMode) Color(0xFF1E293B).copy(alpha = 0.5f) else Color.White, RoundedCornerShape(12.dp))
+                    .border(1.dp, if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color(0xFFE2EEF9), RoundedCornerShape(12.dp))
+            ) {
+                Icon(Icons.Default.BarChart, contentDescription = "Graph", tint = Color(0xFF3B82F6))
             }
         }
     }
@@ -823,60 +822,52 @@ private fun AdvertisingDeviceInfoSection(
     advertisingText: AdvertisingText
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-    val CardDark = if (isDarkMode) BleSenseColors.CardDark else BleSenseColors.LightSurface
-    val DividerDark = if (isDarkMode) BleSenseColors.BorderDark else BleSenseColors.LightBorder
-    val TextPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
-    val TextSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
+    val cardBg = if (isDarkMode) Color(0xFF0B192C) else Color.White
+    val borderColor = if (isDarkMode) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color(0xFFE2EEF9)
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF0F172A)
+    val textSecondary = if (isDarkMode) Color(0xFFA1A1AA) else Color(0xFF64748B)
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(16.dp),
-        color    = CardDark,
-        tonalElevation = 0.dp
+    Card(
+        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(BlueAccent.copy(alpha = 0.15f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Bluetooth, null, tint = BlueAccent, modifier = Modifier.size(18.dp))
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Top Row
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.size(40.dp).background(Color(0xFF3B82F6).copy(alpha=0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Bluetooth, null, tint = Color(0xFF3B82F6), modifier = Modifier.size(20.dp))
+                    }
+                    Column {
+                        Text(advertisingText.deviceNameLabel, fontSize = 11.sp, color = textSecondary)
+                        Text(deviceName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    }
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(advertisingText.deviceNameLabel, fontSize = 10.sp, color = TextSecondary)
-                    Text(
-                        deviceName,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                
+                // Connected badge
+                Row(
+                    modifier = Modifier
+                        .border(1.dp, Color(0xFF10B981).copy(alpha=0.3f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(modifier = Modifier.size(6.dp).background(Color(0xFF10B981), CircleShape))
+                    Text("Connected", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF10B981))
                 }
             }
-            HorizontalDivider(color = DividerDark, thickness = 0.5.dp)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(GreenMuted, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Tag, null, tint = GreenAccent, modifier = Modifier.size(18.dp))
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = borderColor, thickness = 1.dp)
+
+            // Bottom Row
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(modifier = Modifier.size(40.dp).background(Color(0xFF10B981).copy(alpha=0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Tag, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(advertisingText.nodeIdLabel, fontSize = 10.sp, color = TextSecondary)
-                    Text(deviceAddress, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                Column {
+                    Text(advertisingText.nodeIdLabel, fontSize = 11.sp, color = textSecondary)
+                    Text(deviceAddress, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 }
             }
         }
@@ -896,34 +887,41 @@ private fun ThresholdInputSection(
     onConfirmThreshold: () -> Unit
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-    val CardDark = if (isDarkMode) BleSenseColors.CardDark else BleSenseColors.LightSurface
-    val DividerDark = if (isDarkMode) BleSenseColors.BorderDark else BleSenseColors.LightBorder
-    val TextPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
-    val TextSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
+    val cardBg = if (isDarkMode) Color(0xFF1C0A14) else Color(0xFFFEF2F2)
+    val borderColor = if (isDarkMode) Color(0xFFE11D48).copy(alpha = 0.3f) else Color(0xFFFECDD3)
+    val textPrimary = if (isDarkMode) Color.White else Color(0xFF0F172A)
+    val textSecondary = if (isDarkMode) Color(0xFFA1A1AA) else Color(0xFF64748B)
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape    = RoundedCornerShape(16.dp),
-        color    = CardDark,
-        tonalElevation = 0.dp
+    Card(
+        modifier = Modifier.fillMaxWidth().border(1.dp, borderColor, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(RedAccent.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.NotificationsActive, null, tint = RedAccent, modifier = Modifier.size(16.dp))
+            // Header
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(
+                        modifier = Modifier.size(36.dp).background(Color(0xFFE11D48).copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.NotificationsActive, null, tint = Color(0xFFE11D48), modifier = Modifier.size(18.dp))
+                    }
+                    Text("Threshold Alarm", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 }
-                Text("Threshold Alarm", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+
+                // Active badge
+                Row(
+                    modifier = Modifier.border(1.dp, Color(0xFFE11D48).copy(alpha=0.3f), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(modifier = Modifier.size(6.dp).background(Color(0xFFE11D48), CircleShape))
+                    Text("Active", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE11D48))
+                }
             }
 
             // Parameter selector chips
@@ -938,59 +936,64 @@ private fun ThresholdInputSection(
                     val selected = parameterType == type
                     Box(
                         modifier = Modifier
-                            .background(
-                                if (selected) GreenAccent else DividerDark,
-                                RoundedCornerShape(20.dp)
-                            )
+                            .background(if (selected) Color(0xFF10B981) else if(isDarkMode) Color(0xFF1E293B) else Color(0xFFF1F5F9), RoundedCornerShape(20.dp))
                             .clickable { onParameterChange(type) }
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
                             type,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (selected) GreenDark else TextSecondary
+                            color = if (selected) Color.White else textSecondary
                         )
                     }
                 }
             }
 
-            // Threshold input
-            OutlinedTextField(
-                value         = thresholdValue,
-                onValueChange = onThresholdChange,
-                label         = { Text("Enter $parameterType Threshold", color = TextSecondary, fontSize = 12.sp) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier      = Modifier.fillMaxWidth(),
-                isError       = thresholdValue.isNotEmpty() && thresholdValue.toFloatOrNull() == null,
-                singleLine    = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor   = GreenAccent,
-                    unfocusedBorderColor = DividerDark,
-                    focusedTextColor     = TextPrimary,
-                    unfocusedTextColor   = TextPrimary,
-                    errorBorderColor     = RedAccent,
-                    cursorColor          = GreenAccent
-                ),
-                supportingText = {
-                    if (thresholdValue.isNotEmpty() && thresholdValue.toFloatOrNull() == null) {
-                        Text("Please enter a valid number", color = RedAccent, fontSize = 11.sp)
-                    }
+            // Custom Input Box
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(if (isDarkMode) Color(0xFF0F172A) else Color.White, RoundedCornerShape(12.dp))
+                    .border(1.dp, if (isDarkMode) Color(0xFF3B82F6).copy(alpha=0.3f) else Color(0xFFE2EEF9), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(if (parameterType == "Temperature") Icons.Default.Thermostat else if (parameterType == "Humidity") Icons.Default.WaterDrop else Icons.Default.Sensors, null, tint = textSecondary, modifier = Modifier.size(20.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Set $parameterType Threshold", fontSize = 10.sp, color = textSecondary)
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = thresholdValue,
+                        onValueChange = onThresholdChange,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = textPrimary, fontSize = 14.sp),
+                        decorationBox = { innerTextField ->
+                            if (thresholdValue.isEmpty()) {
+                                Text("Enter $parameterType Threshold", color = textSecondary.copy(alpha=0.5f), fontSize = 14.sp)
+                            }
+                            innerTextField()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-            )
+            }
 
             // Confirm button
             Button(
                 onClick  = onConfirmThreshold,
                 enabled  = thresholdValue.isNotEmpty() && thresholdValue.toFloatOrNull() != null,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
                 shape    = RoundedCornerShape(12.dp),
                 colors   = ButtonDefaults.buttonColors(
-                    containerColor = GreenAccent,
-                    disabledContainerColor = DividerDark
-                )
+                    containerColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF1F5F9),
+                    disabledContainerColor = if (isDarkMode) Color(0xFF0F172A).copy(alpha=0.5f) else Color(0xFFF1F5F9)
+                ),
+                border = BorderStroke(1.dp, if (isDarkMode) Color.White.copy(alpha=0.05f) else Color(0xFFE2EEF9))
             ) {
-                Text("Set Alarm Threshold", fontWeight = FontWeight.Bold, color = GreenDark)
+                Icon(Icons.Default.Security, null, tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Set Alarm Threshold", fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
             }
         }
     }
@@ -1040,15 +1043,15 @@ fun AdvertisingDownloadButton(
             modifier = Modifier.weight(1f).height(48.dp),
             shape    = RoundedCornerShape(12.dp),
             enabled  = !isExporting,
-            colors   = ButtonDefaults.buttonColors(containerColor = GreenAccent)
+            colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
         ) {
-            Icon(Icons.Default.Download, null, tint = GreenDark, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
+            Icon(Icons.Default.Download, null, tint = Color(0xFF022C22), modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 if (isExporting) advertisingText.exportingData else advertisingText.downloadData,
-                color      = GreenDark,
-                fontWeight = FontWeight.Bold,
-                fontSize   = 12.sp
+                color      = Color(0xFF022C22),
+                fontWeight = FontWeight.ExtraBold,
+                fontSize   = 14.sp
             )
         }
     }
@@ -1156,40 +1159,94 @@ private fun ResponsiveDataCards(
 
         // Sensor value cards
         if (otherData.isNotEmpty()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape    = RoundedCornerShape(16.dp),
-                color    = CardDark,
-                tonalElevation = 0.dp
+            val cardBg = if (isDarkMode) Color(0xFF0B192C) else Color.White
+            val borderColor = if (isDarkMode) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color(0xFFE2EEF9)
+            val textPrimary = if (isDarkMode) Color.White else Color(0xFF0F172A)
+            val textSecondary = if (isDarkMode) Color(0xFFA1A1AA) else Color(0xFF64748B)
+
+            Card(
+                modifier = Modifier.fillMaxWidth().border(1.dp, borderColor, RoundedCornerShape(16.dp)),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = cardBg)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    when (otherData.size) {
-                        1 -> DataCard(
-                            label = otherData[0].first,
-                            value = otherData[0].second,
-                            advertisingText = advertisingText
-                        )
-                        else -> {
-                            otherData.chunked(2).forEach { row ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    row.forEach { (label, value) ->
-                                        DataCard(
-                                            label  = label,
-                                            value  = value,
-                                            advertisingText = advertisingText,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                    if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Header
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(modifier = Modifier.size(32.dp).background(Color(0xFF3B82F6).copy(alpha=0.2f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Timeline, null, tint = Color(0xFF60A5FA), modifier = Modifier.size(18.dp))
+                            }
+                            Text("Sensor Readings", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.AccessTime, null, tint = textSecondary, modifier = Modifier.size(14.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("Last Updated", fontSize = 9.sp, color = textSecondary)
+                                Text(SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date()), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Smart Grid Layout
+                    val columns = if (otherData.size == 4) 2 else 3
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        otherData.chunked(columns).forEach { rowItems ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                rowItems.forEachIndexed { index, pair ->
+                                    MockupDataCard(label = pair.first, value = pair.second, index = index, modifier = Modifier.weight(1f))
+                                }
+                                repeat(columns - rowItems.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Mockup Data Card (3-Grid style)
+// ══════════════════════════════════════════════════════════════════════════════
+@Composable
+private fun MockupDataCard(label: String, value: String, index: Int, modifier: Modifier = Modifier) {
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val textSecondary = if (isDarkMode) Color(0xFFA1A1AA) else Color(0xFF64748B)
+
+    val themeColor = when {
+        label.contains("Temp", ignoreCase = true) -> Color(0xFF38BDF8)
+        label.contains("Hum", ignoreCase = true) -> Color(0xFFC084FC)
+        label.contains("ID", ignoreCase = true) -> Color(0xFF34D399)
+        index % 3 == 0 -> Color(0xFF38BDF8)
+        index % 3 == 1 -> Color(0xFFC084FC)
+        else -> Color(0xFF34D399)
+    }
+
+    val icon = when {
+        label.contains("Temp", ignoreCase = true) -> Icons.Default.Thermostat
+        label.contains("Hum", ignoreCase = true) -> Icons.Default.WaterDrop
+        label.contains("ID", ignoreCase = true) -> Icons.Default.Memory
+        else -> Icons.Default.Sensors
+    }
+
+    Card(
+        modifier = modifier.border(1.dp, themeColor.copy(alpha=0.2f), RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = 0.05f))
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.size(32.dp).background(themeColor.copy(alpha=0.15f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = themeColor, modifier = Modifier.size(16.dp))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, fontSize = 11.sp, color = textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = themeColor, maxLines = 1)
+            }
+            Box(modifier = Modifier.height(3.dp).fillMaxWidth(0.6f).background(themeColor, RoundedCornerShape(1.dp)))
         }
     }
 }

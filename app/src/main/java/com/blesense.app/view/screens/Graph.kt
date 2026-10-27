@@ -46,7 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.math.*
 import androidx.compose.ui.text.font.FontFamily.Companion.Monospace
-import java.util.concurrent.ConcurrentLinkedQueue
 
 /* -------------------------------------------------------------
    3-D helpers
@@ -288,6 +287,8 @@ fun ChartScreen(
     val soilPHHist  = remember(deviceAddress) { mutableStateListOf<Float>() }
     val timestamps  = remember(deviceAddress) { mutableStateListOf<String>() }
     val fmt = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val timeFormatMs = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()) }
+    var lastFlowUpdateTime by remember { mutableLongStateOf(0L) }
 
     val titleGraphs            = "Graphs"
     val tempLabel              = "Temperature (°C)"
@@ -322,6 +323,7 @@ fun ChartScreen(
     val appBarBg = if (dark) Color(0xFF121212) else Color.White
 
     val receiving   = remember { mutableStateOf(false) }
+    var lastDataArrivalTime by remember { mutableLongStateOf(0L) }
     val hasSoil     = remember { mutableStateOf(false) }
     var tabIdx      by remember { mutableStateOf(0) }
     val tabs        = listOf(tabGraphs, tabSoilTable)
@@ -330,30 +332,43 @@ fun ChartScreen(
     LaunchedEffect(Unit) {
         val act = ctx as? Activity
         if (act != null) {
-            vm.startScan(act)
             vm.startContinuousScan(act)
         }
     }
 
-    val updateQueue = remember(deviceAddress) { ConcurrentLinkedQueue<SensorData>() }
-
-    // Sync liveSensorData from targetDevice (device list flow) as dual-channel fallback
+    // Sync initial liveSensorData from targetDevice before stream packets start flowing
     LaunchedEffect(targetDevice?.sensorData) {
         targetDevice?.sensorData?.let { devData ->
             if (!deviceAddress.isNullOrBlank() && !deviceAddress.startsWith("AA:BB:CC:00")) {
-                liveSensorData = devData
-                updateQueue.add(devData)
+                if (lastDataArrivalTime == 0L) {
+                    liveSensorData = devData
+                }
             }
         }
     }
 
-    LaunchedEffect(sensorData, detectedType, tempH.size, ammoniaH.size, rainfallH.size, windSpdH.size, accXH.size, vemlLuxH.size, vcnlLuxH.size, soilMH.size) {
-        receiving.value = sensorData != null || 
-            tempH.isNotEmpty() || humH.isNotEmpty() || tempFH.isNotEmpty() || 
-            ammoniaH.isNotEmpty() || rainfallH.isNotEmpty() || windSpdH.isNotEmpty() || 
-            accXH.isNotEmpty() || vemlLuxH.isNotEmpty() || vcnlLuxH.isNotEmpty() || 
-            soilMH.isNotEmpty() || sen66Pm25H.isNotEmpty()
+    LaunchedEffect(sensorData, detectedType) {
         hasSoil.value = detectedType == "Soil" || sensorData is SensorData.SoilSensorData || soilM != null || soilT != null || soilN != null
+    }
+
+    val screenOpenTime = remember { System.currentTimeMillis() }
+
+    // Dynamic stream heartbeat:
+    // Green ("Live Stream Active") if packet arrived within last 5 seconds.
+    LaunchedEffect(deviceAddress) {
+        while (isActive) {
+            delay(1000L)
+            val now = System.currentTimeMillis()
+            if (!deviceAddress.isNullOrBlank() && !deviceAddress.startsWith("AA:BB:CC:00")) {
+                if (lastDataArrivalTime > 0L) {
+                    val silence = now - lastDataArrivalTime
+                    val isReceiving = silence < 5000L
+                    receiving.value = isReceiving
+                }
+            } else if (deviceAddress?.startsWith("AA:BB:CC:00") == true) {
+                receiving.value = true
+            }
+        }
     }
 
     LaunchedEffect(deviceAddress) {
@@ -436,8 +451,9 @@ fun ChartScreen(
                         else -> {}
                     }
                 }
+                lastDataArrivalTime = System.currentTimeMillis()
                 repeat(20) { updateMock() }
-                launch { while (isActive) { delay(2000); updateMock() } }
+                launch { while (isActive) { delay(2000); updateMock(); lastDataArrivalTime = System.currentTimeMillis() } }
             }
         } else {
             val existingHistory = vm.getHistory(deviceAddress)
@@ -485,79 +501,7 @@ fun ChartScreen(
             }
         }
 
-        // 2. Real-time Pipeline flusher
-        launch {
-            while (isActive) {
-                delay(60) // 16Hz UI Refresh for smooth movement
-                val batch = mutableListOf<SensorData>()
-                var p = updateQueue.poll()
-                while (p != null) {
-                    batch.add(p)
-                    p = updateQueue.poll()
-                }
-
-                if (batch.isNotEmpty()) {
-                    flowState.value = "Data received at: ${SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date())}"
-                    
-                    var lastData: SensorData? = null
-
-                    batch.forEach { data ->
-                        lastData = data
-                        when (data) {
-                            is SensorData.LIS3DHData -> {
-                                val xVal = data.x.toFloatOrNull() ?: 0f
-                                val yVal = data.y.toFloatOrNull() ?: 0f
-                                val zVal = data.z.toFloatOrNull() ?: 0f
-                                liveX = xVal
-                                liveY = yVal
-                                liveZ = zVal
-                                updateHistory(accXH, xVal)
-                                updateHistory(accYH, yVal)
-                                updateHistory(accZH, zVal)
-                            }
-                            is SensorData.SHT40Data -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
-                            is SensorData.STS30Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
-                            is SensorData.STTS751Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
-                            is SensorData.ATRHData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f); updateHistory(vemlLuxH, data.lux.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
-                            is SensorData.RainData -> data.rainfall.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
-                            is SensorData.WindData -> data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
-                            is SensorData.AmmoniaSensorData -> data.ammonia.replace(" ppm", "").trim().toFloatOrNull()?.let { updateHistory(ammoniaH, it) }
-                            is SensorData.SoilSensorData -> { 
-                                if (timestamps.size >= 20) timestamps.removeAt(0)
-                                timestamps.add(fmt.format(Date()))
-                                updateHistory(soilTH, data.temperature.toFloatOrNull()?:0f); updateHistory(soilMH, data.moisture.toFloatOrNull()?:0f); updateHistory(soilNH, data.nitrogen.toFloatOrNull()?:0f); updateHistory(soilPHist, data.phosphorus.toFloatOrNull()?:0f); updateHistory(soilKHist, data.potassium.toFloatOrNull()?:0f); updateHistory(soilECHist, data.ec.toFloatOrNull()?:0f); updateHistory(soilPHHist, data.pH.toFloatOrNull()?:0f) 
-                            }
-                            is SensorData.VEML7700Data -> data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }
-                            is SensorData.VCNL4040Data -> data.lux.toFloatOrNull()?.let { updateHistory(vcnlLuxH, it) }
-                            is SensorData.AHT20Data -> { updateHistory(ahtTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(ahtHumH, data.humidity.toFloatOrNull()?:0f) }
-                            is SensorData.BME680Data -> { updateHistory(bmeTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(bmeHumH, data.humidity.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
-                            is SensorData.Sen66Data -> { 
-                                updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f)
-                                data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }; data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }; data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }; data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }; data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }; data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }; data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
-                            }
-                            is SensorData.TempLoggerData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
-                            is SensorData.DataLoggerData -> { 
-                                val points = data.getParsedPoints()
-                                if (points.isNotEmpty()) { 
-                                    val last = points.last()
-                                    liveX = last.first.toByte().toFloat()/6.4f; liveY = last.second.toByte().toFloat()/6.4f; liveZ = last.third.toByte().toFloat()/6.4f 
-                                }
-                                updateHistoryBatch(accXH, points.map { it.first.toByte().toFloat()/6.4f }); updateHistoryBatch(accYH, points.map { it.second.toByte().toFloat()/6.4f }); updateHistoryBatch(accZH, points.map { it.third.toByte().toFloat()/6.4f }) 
-                            }
-                            is SensorData.AWSData -> {
-                                data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }; data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }; data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
-                            }
-                            else -> {}
-                        }
-                    }
-
-                    // Flush UI state once per batch to avoid UI saturation
-                    lastData?.let { liveSensorData = it }
-                }
-            }
-        }
-
-        // Collection loop (matching reference F:\)
+        // Real-time direct stream collection: 0ms delay, instantaneous value and graph rendering
         vm.sensorDataStream.collect { data ->
             val dataAddr = when (data) {
                 is SensorData.SHT40Data -> data.deviceAddress
@@ -589,7 +533,74 @@ fun ChartScreen(
             }
 
             if (isOur) {
-                updateQueue.add(data)
+                val now = System.currentTimeMillis()
+                lastDataArrivalTime = now
+                if (now - lastFlowUpdateTime >= 150L) {
+                    lastFlowUpdateTime = now
+                    flowState.value = "Data received at: ${timeFormatMs.format(Date(now))}"
+                }
+                receiving.value = true
+                liveSensorData = data
+
+                when (data) {
+                    is SensorData.LIS3DHData -> {
+                        val xVal = data.x.toFloatOrNull() ?: 0f
+                        val yVal = data.y.toFloatOrNull() ?: 0f
+                        val zVal = data.z.toFloatOrNull() ?: 0f
+                        liveX = xVal
+                        liveY = yVal
+                        liveZ = zVal
+                        updateHistory(accXH, xVal)
+                        updateHistory(accYH, yVal)
+                        updateHistory(accZH, zVal)
+                    }
+                    is SensorData.SHT40Data -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
+                    is SensorData.STS30Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
+                    is SensorData.STTS751Data -> { updateHistory(tempH, data.temperatureC.toFloatOrNull()?:0f); updateHistory(tempFH, data.temperatureF.toFloatOrNull()?:0f) }
+                    is SensorData.ATRHData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f); updateHistory(vemlLuxH, data.lux.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
+                    is SensorData.RainData -> data.rainfall.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
+                    is SensorData.WindData -> data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }
+                    is SensorData.AmmoniaSensorData -> data.ammonia.replace(" ppm", "").trim().toFloatOrNull()?.let { updateHistory(ammoniaH, it) }
+                    is SensorData.SoilSensorData -> { 
+                        if (timestamps.size >= 20) timestamps.removeAt(0)
+                        timestamps.add(fmt.format(Date()))
+                        updateHistory(soilTH, data.temperature.toFloatOrNull()?:0f); updateHistory(soilMH, data.moisture.toFloatOrNull()?:0f); updateHistory(soilNH, data.nitrogen.toFloatOrNull()?:0f); updateHistory(soilPHist, data.phosphorus.toFloatOrNull()?:0f); updateHistory(soilKHist, data.potassium.toFloatOrNull()?:0f); updateHistory(soilECHist, data.ec.toFloatOrNull()?:0f); updateHistory(soilPHHist, data.pH.toFloatOrNull()?:0f) 
+                    }
+                    is SensorData.VEML7700Data -> data.lux.toFloatOrNull()?.let { updateHistory(vemlLuxH, it) }
+                    is SensorData.VCNL4040Data -> data.lux.toFloatOrNull()?.let { updateHistory(vcnlLuxH, it) }
+                    is SensorData.AHT20Data -> { updateHistory(ahtTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(ahtHumH, data.humidity.toFloatOrNull()?:0f) }
+                    is SensorData.BME680Data -> { updateHistory(bmeTempH, data.temperature.toFloatOrNull()?:0f); updateHistory(bmeHumH, data.humidity.toFloatOrNull()?:0f); updateHistory(bmePresH, data.pressure.toFloatOrNull()?:0f) }
+                    is SensorData.Sen66Data -> { 
+                        updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f)
+                        data.pm1.toFloatOrNull()?.let { updateHistory(sen66Pm1H, it) }; data.pm25.toFloatOrNull()?.let { updateHistory(sen66Pm25H, it) }; data.pm4.toFloatOrNull()?.let { updateHistory(sen66Pm4H, it) }; data.pm10.toFloatOrNull()?.let { updateHistory(sen66Pm10H, it) }; data.co2.toFloatOrNull()?.let { updateHistory(sen66Co2H, it) }; data.voc.toFloatOrNull()?.let { updateHistory(sen66VocH, it) }; data.nox.toFloatOrNull()?.let { updateHistory(sen66NoxH, it) }
+                    }
+                    is SensorData.TempLoggerData -> { updateHistory(tempH, data.temperature.toFloatOrNull()?:0f); updateHistory(humH, data.humidity.toFloatOrNull()?:0f) }
+                    is SensorData.DataLoggerData -> { 
+                        val points = data.getParsedPoints()
+                        if (points.isNotEmpty()) { 
+                            val last = points.last()
+                            liveX = last.first.toByte().toFloat() / 6.4f
+                            liveY = last.second.toByte().toFloat() / 6.4f
+                            liveZ = last.third.toByte().toFloat() / 6.4f 
+
+                            val xVals = ArrayList<Float>(points.size)
+                            val yVals = ArrayList<Float>(points.size)
+                            val zVals = ArrayList<Float>(points.size)
+                            for (pt in points) {
+                                xVals.add(pt.first.toByte().toFloat() / 6.4f)
+                                yVals.add(pt.second.toByte().toFloat() / 6.4f)
+                                zVals.add(pt.third.toByte().toFloat() / 6.4f)
+                            }
+                            updateHistoryBatch(accXH, xVals)
+                            updateHistoryBatch(accYH, yVals)
+                            updateHistoryBatch(accZH, zVals)
+                        }
+                    }
+                    is SensorData.AWSData -> {
+                        data.temperature.toFloatOrNull()?.let { updateHistory(tempH, it) }; data.humidity.toFloatOrNull()?.let { updateHistory(humH, it) }; data.windSpeed.toFloatOrNull()?.let { updateHistory(windSpdH, it) }; data.rfCumulative.toFloatOrNull()?.let { updateHistory(rainfallH, it) }
+                    }
+                    else -> {}
+                }
             }
         }
     }
@@ -1394,9 +1405,19 @@ private fun updateHistory(list: MutableList<Float>, v: Float) {
 
 private fun updateHistoryBatch(list: MutableList<Float>, values: List<Float>) {
     if (values.isEmpty()) return
-    val total = list.size + values.size
-    if (total > 100) { repeat((total-100).coerceAtMost(list.size)) { list.removeAt(0) } }
-    list.addAll(if (values.size > 100) values.takeLast(100) else values)
+    val newTail = if (values.size >= 100) values.takeLast(100) else values
+    val needFromOld = (100 - newTail.size).coerceAtLeast(0)
+    val keepFromOld = if (needFromOld > 0 && list.isNotEmpty()) {
+        list.takeLast(needFromOld)
+    } else {
+        emptyList()
+    }
+    val combined = ArrayList<Float>(keepFromOld.size + newTail.size).apply {
+        addAll(keepFromOld)
+        addAll(newTail)
+    }
+    list.clear()
+    list.addAll(combined)
 }
 
 @Composable
@@ -1404,6 +1425,30 @@ fun SensorGraphCard(title: String, cur: Float?, hist: List<Float>, lineCol: Colo
     var tapPos by remember { mutableStateOf<Offset?>(null) }
     var tapVal by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(tapPos) { if (tapPos != null) { delay(1500); tapPos = null; tapVal = null } }
+
+    val yLabelPaint = remember(txt2Col) {
+        android.graphics.Paint().apply { 
+            color = android.graphics.Color.argb((txt2Col.alpha*255).toInt(), (txt2Col.red*255).toInt(), (txt2Col.green*255).toInt(), (txt2Col.blue*255).toInt())
+            textSize = 18f
+            textAlign = android.graphics.Paint.Align.RIGHT 
+        }
+    }
+    val xLabelPaint = remember(txt2Col) {
+        android.graphics.Paint().apply { 
+            color = android.graphics.Color.argb((txt2Col.alpha*255).toInt(), (txt2Col.red*255).toInt(), (txt2Col.green*255).toInt(), (txt2Col.blue*255).toInt())
+            textSize = 16f
+            textAlign = android.graphics.Paint.Align.CENTER 
+        }
+    }
+    val tooltipPaint = remember(lineCol) {
+        android.graphics.Paint().apply { 
+            color = android.graphics.Color.argb((lineCol.alpha*255).toInt(), (lineCol.red*255).toInt(), (lineCol.green*255).toInt(), (lineCol.blue*255).toInt())
+            textSize = 23f
+            textAlign = android.graphics.Paint.Align.CENTER
+            setShadowLayer(5f, 2f, 2f, android.graphics.Color.BLACK) 
+        }
+    }
+
     Card(modifier = Modifier.fillMaxWidth().height(250.dp), elevation = 4.dp, shape = RoundedCornerShape(16.dp), backgroundColor = cardBg) {
         Column(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = txtCol, textAlign = TextAlign.Center)
@@ -1450,22 +1495,14 @@ fun SensorGraphCard(title: String, cur: Float?, hist: List<Float>, lineCol: Colo
                     }
                     drawRect(txt2Col.copy(0.35f), Offset(sx, sy), Size(w, h), style = Stroke(1.2f))
                     
-                    val paint = android.graphics.Paint().apply { 
-                        color = android.graphics.Color.argb((txt2Col.alpha*255).toInt(), (txt2Col.red*255).toInt(), (txt2Col.green*255).toInt(), (txt2Col.blue*255).toInt())
-                        textSize = 18f; textAlign = android.graphics.Paint.Align.RIGHT 
-                    }
                     for (i in 0..lCount) { 
                         val v = yMin + i * lStep
                         val y = sy + h * (1 - (v - yMin) / yRng)
-                        drawContext.canvas.nativeCanvas.drawText("%.0f".format(v), sx - 8f, y + 6f, paint) 
-                    }
-                    val xPaint = android.graphics.Paint().apply { 
-                        color = android.graphics.Color.argb((txt2Col.alpha*255).toInt(), (txt2Col.red*255).toInt(), (txt2Col.green*255).toInt(), (txt2Col.blue*255).toInt())
-                        textSize = 16f; textAlign = android.graphics.Paint.Align.CENTER 
+                        drawContext.canvas.nativeCanvas.drawText("%.0f".format(v), sx - 8f, y + 6f, yLabelPaint) 
                     }
                     listOf(0, 25, 50, 75, 100).forEach { idx -> 
                         val x = sx + (idx.toFloat()/100f)*w
-                        drawContext.canvas.nativeCanvas.drawText(idx.toString(), x, ey + 18f, xPaint) 
+                        drawContext.canvas.nativeCanvas.drawText(idx.toString(), x, ey + 18f, xLabelPaint) 
                     }
 
                     if (hist.isNotEmpty()) {
@@ -1482,11 +1519,7 @@ fun SensorGraphCard(title: String, cur: Float?, hist: List<Float>, lineCol: Colo
                             tapVal = hist[idx]
                             drawLine(lineCol.copy(0.6f), Offset(tx, sy), Offset(tx, ey), 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
                             drawCircle(lineCol, 8f, Offset(tx, ty))
-                            val tPaint = android.graphics.Paint().apply { 
-                                color = android.graphics.Color.argb((lineCol.alpha*255).toInt(), (lineCol.red*255).toInt(), (lineCol.green*255).toInt(), (lineCol.blue*255).toInt())
-                                textSize = 23f; textAlign = android.graphics.Paint.Align.CENTER; setShadowLayer(5f, 2f, 2f, android.graphics.Color.BLACK) 
-                            }
-                            drawContext.canvas.nativeCanvas.drawText("%.2f".format(hist[idx]), tx, ty - 22f, tPaint)
+                            drawContext.canvas.nativeCanvas.drawText("%.2f".format(hist[idx]), tx, ty - 22f, tooltipPaint)
                         }
                     } else {
                         val midY = sy + h * 0.5f
@@ -1604,9 +1637,9 @@ private fun drawAngleGauge(scope: DrawScope, angle: Float, label: String, color:
 @Composable
 fun BleNodeVisualizer(xAxis: Float?, yAxis: Float?, zAxis: Float?, cardBg: Color, textColor: Color, secondaryColor: Color, isDarkMode: Boolean) {
     val x = xAxis ?: 0f; val y = yAxis ?: 0f; val z = zAxis ?: 0f
-    val rA by animateFloatAsState(Math.toDegrees(atan2(y.toDouble(), z.toDouble())).toFloat(), spring(0.6f, 80f), label = "r")
-    val pA by animateFloatAsState(Math.toDegrees(atan2((-x).toDouble(), sqrt((y*y+z*z).toDouble()))).toFloat(), spring(0.6f, 80f), label = "p")
-    val yA by animateFloatAsState(Math.toDegrees(atan2(x.toDouble(), y.toDouble())).toFloat(), spring(0.6f, 80f), label = "y")
+    val rA by animateFloatAsState(Math.toDegrees(atan2(y.toDouble(), z.toDouble())).toFloat(), spring(Spring.DampingRatioNoBouncy, 600f), label = "r")
+    val pA by animateFloatAsState(Math.toDegrees(atan2((-x).toDouble(), sqrt((y*y+z*z).toDouble()))).toFloat(), spring(Spring.DampingRatioNoBouncy, 600f), label = "p")
+    val yA by animateFloatAsState(Math.toDegrees(atan2(x.toDouble(), y.toDouble())).toFloat(), spring(Spring.DampingRatioNoBouncy, 600f), label = "y")
     val inf = rememberInfiniteTransition(label = "i"); val pS by inf.animateFloat(0.6f, 1.4f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing)), label = "s"); val pAl by inf.animateFloat(0.6f, 0f, infiniteRepeatable(tween(1400, easing = LinearEasing)), label = "a"); val bAl by inf.animateFloat(1f, 0.2f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "b")
     val accB = Color(0xFF2979FF); val accC = Color(0xFF00E5FF); val nB = if (isDarkMode) Color(0xFF1A237E) else Color(0xFF1565C0); val nS = if (isDarkMode) Color(0xFF283593) else Color(0xFF1976D2)
     Card(modifier = Modifier.fillMaxWidth().height(420.dp), elevation = 6.dp, shape = RoundedCornerShape(16.dp), backgroundColor = cardBg) {

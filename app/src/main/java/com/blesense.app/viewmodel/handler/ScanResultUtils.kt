@@ -48,7 +48,7 @@ object ScanResultUtils {
         historyMap: HashMap<String, ArrayDeque<HistoricalDataEntry>>,
         logicalAddress: String,
         entry: HistoricalDataEntry,
-        maxEntries: Int = 20000
+        maxEntries: Int = 1000
     ) {
         synchronized(historyMap) {
             val deque = historyMap.getOrPut(logicalAddress) { ArrayDeque() }

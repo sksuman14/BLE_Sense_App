@@ -12,8 +12,8 @@ android {
         applicationId = "com.blesense.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 22  // Increment version for Play Store update
-        versionName = "1.2.3"
+        versionCode = 25  // Increment version for Play Store update
+        versionName = "1.2.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

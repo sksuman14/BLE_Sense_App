@@ -8,7 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material3.*
@@ -21,18 +20,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.blesense.app.ui.theme.BleSenseColors
-import com.blesense.app.model.*
-import com.blesense.app.viewmodel.*
-import com.blesense.app.repository.*
-import com.blesense.app.util.*
-import com.blesense.app.view.components.*
-import com.blesense.app.repository.DataLoggerRepository
 import com.blesense.app.model.DataLoggerConfig
+import com.blesense.app.repository.DataLoggerRepository
+import com.blesense.app.util.ThemeManager
+import com.blesense.app.view.components.ReferenceBottomNavBar
+import com.blesense.app.view.components.StandardScreenHeaderBar
+import com.blesense.app.viewmodel.BluetoothScanViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataLoggerListScreen(
     navController: NavController,
@@ -42,32 +40,18 @@ fun DataLoggerListScreen(
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
     val bgColor = if (isDarkMode) BleSenseColors.BackgroundDark else BleSenseColors.LightBackground
-    val cardBg = if (isDarkMode) BleSenseColors.SurfaceDark else Color.White
     val textPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
-    val textSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
+
+    val context = LocalContext.current
+    val activity = context as? android.app.Activity
+    // Ensure LiveStock DataLogger scans completely independently on its own!
+    LaunchedEffect(Unit) {
+        bluetoothViewModel?.ensureScanning(activity)
+    }
 
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
         containerColor = bgColor,
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text("Data Logger Repository", 
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimary,
-                        fontSize = 18.sp
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = cardBg
-                )
-            )
-        },
         bottomBar = {
             if (navController is NavHostController) {
                 ReferenceBottomNavBar(
@@ -78,42 +62,51 @@ fun DataLoggerListScreen(
             }
         }
     ) { padding ->
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(bgColor)
                 .padding(padding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(top = 24.dp, bottom = 20.dp)
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                item {
-                    Text(
-                        "Data Logger Hardware Modules (${loggers.size} Active)",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimary
-                    )
-                }
+            item {
+                StandardScreenHeaderBar(
+                    title = "LiveStock Logger",
+                    subtitle = "Data Logger Hardware Repository",
+                    isDarkMode = isDarkMode,
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
 
-                items(loggers) { logger ->
-                    DataLoggerItem(
-                        logger = logger,
-                        isDarkMode = isDarkMode,
-                        onClick = {
-                            navController.navigate("data_logger_control/${logger.id}")
-                        }
-                    )
-                }
+            item {
+                Text(
+                    text = "Hardware Modules (${loggers.size} Active)",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary
+                )
+            }
+
+            items(loggers) { logger ->
+                DataLoggerItem(
+                    logger = logger,
+                    isDarkMode = isDarkMode,
+                    onClick = {
+                        navController.navigate("data_logger_control/${logger.id}")
+                    }
+                )
             }
         }
     }
 }
 
 @Composable
-fun DataLoggerItem(logger: DataLoggerConfig, isDarkMode: Boolean, onClick: () -> Unit) {
+fun DataLoggerItem(
+    logger: DataLoggerConfig,
+    isDarkMode: Boolean,
+    onClick: () -> Unit
+) {
     val cardBg = if (isDarkMode) BleSenseColors.SurfaceDark else Color.White
     val borderColor = if (isDarkMode) BleSenseColors.BorderDark else Color(0xFFE2EEF9)
     val textPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
@@ -132,32 +125,36 @@ fun DataLoggerItem(logger: DataLoggerConfig, isDarkMode: Boolean, onClick: () ->
     ) {
         Row(
             modifier = Modifier
-                .padding(16.dp)
+                .padding(14.dp)
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
                         .background(Color(0xFFECFEFF)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Default.DeveloperBoard,
+                        imageVector = Icons.Default.DeveloperBoard,
                         contentDescription = null,
                         tint = Color(0xFF0891B2),
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                
-                Column {
+
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = logger.name,
                         color = textPrimary,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -172,9 +169,9 @@ fun DataLoggerItem(logger: DataLoggerConfig, isDarkMode: Boolean, onClick: () ->
                     )
                 }
             }
-            
+
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = textSecondary,
                 modifier = Modifier.size(20.dp)
@@ -182,5 +179,3 @@ fun DataLoggerItem(logger: DataLoggerConfig, isDarkMode: Boolean, onClick: () ->
         }
     }
 }
-
-

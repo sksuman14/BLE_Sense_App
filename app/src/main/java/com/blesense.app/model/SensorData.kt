@@ -56,6 +56,23 @@ sealed class SensorData {
         val deviceAddress: String = ""
     ) : SensorData()
 
+    data class StepCounterData(
+        override val deviceId: String,
+        val totalSteps: Int,
+        val isWalking: Boolean,
+        val cadenceSpm: Int,
+        val distanceMeters: Float,
+        val caloriesKcal: Float,
+        val x: Float,
+        val y: Float,
+        val z: Float,
+        val magnitude: Float,
+        val motion: Float,
+        val dynamicThreshold: Float,
+        val deviceAddress: String = "",
+        val timestamp: Long = System.currentTimeMillis()
+    ) : SensorData()
+
     data class SoilSensorData(
         override val deviceId: String,
         val nitrogen: String,
@@ -207,7 +224,20 @@ sealed class SensorData {
         val deviceAddress: String = ""
     ) : SensorData() {
 
-        val rawDataHex: String get() = rawData.joinToString(" ") { "%02X".format(it) }
+        val rawDataHex: String
+            get() {
+                if (rawData.isEmpty()) return ""
+                val hexChars = "0123456789ABCDEF"
+                val chars = CharArray(rawData.size * 3)
+                var idx = 0
+                for (b in rawData) {
+                    val v = b.toInt() and 0xFF
+                    chars[idx++] = hexChars[v ushr 4]
+                    chars[idx++] = hexChars[v and 0x0F]
+                    chars[idx++] = ' '
+                }
+                return String(chars, 0, chars.size - 1)
+            }
 
         /**
          * Optimized lazy parser for acceleration data.

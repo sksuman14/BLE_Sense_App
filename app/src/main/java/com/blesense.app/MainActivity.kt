@@ -44,10 +44,26 @@ class MainActivity : ComponentActivity() {
     }
 
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
-        if (event == Lifecycle.Event.ON_DESTROY) {
-            // App is being closed
-            bluetoothViewModel.clearAllDeviceData()
-            clearCache(this)
+        when (event) {
+            Lifecycle.Event.ON_RESUME -> {
+                // App returned to foreground: ensure BLE scanner is fresh, clean, and active
+                bluetoothViewModel.onAppForegrounded(this)
+            }
+            Lifecycle.Event.ON_STOP -> {
+                // App went to background (screen off or switched apps):
+                // Cleanly stop scanning to eliminate battery drain, OS excessive scan penalties, and client leaks
+                bluetoothViewModel.onAppBackgrounded()
+                if (isFinishing) {
+                    bluetoothViewModel.stopScanBlocking()
+                }
+            }
+            Lifecycle.Event.ON_DESTROY -> {
+                // App is being closed
+                bluetoothViewModel.stopScanBlocking()
+                bluetoothViewModel.clearAllDeviceData()
+                clearCache(this)
+            }
+            else -> {}
         }
     }
 
@@ -147,6 +163,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        bluetoothViewModel.stopScanBlocking()
         super.onDestroy()
         lifecycle.removeObserver(lifecycleObserver)
         clearCache(this)

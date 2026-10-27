@@ -31,9 +31,51 @@ interface BleDeviceHandler {
 
     /**
      * Process a BLE scan result that this handler has claimed via [canHandle].
-     * Called on a background dispatcher. Must be safe to call concurrently.
+     * Direct high-performance entry point: passes pre-extracted metadata and manufacturer
+     * data directly without reflection or synthetic ScanResult object creation.
      */
-    suspend fun handle(result: ScanResult)
+    suspend fun handle(
+        deviceAddress: String,
+        deviceName: String?,
+        rssi: Int,
+        manufacturerData: SparseArray<ByteArray>,
+        scanRecordBytes: ByteArray?,
+        isScannable: Boolean,
+        isConnectable: Boolean
+    )
+
+    /**
+     * Legacy entry point for native Android ScanResult.
+     * Default implementation extracts parameters and delegates to [handle].
+     */
+    suspend fun handle(result: ScanResult) {
+        val device = result.device ?: return
+        val address = device.address ?: return
+        val scanRecord = result.scanRecord
+        val name = scanRecord?.deviceName ?: "N/A"
+        val mfg = SparseArray<ByteArray>()
+        scanRecord?.manufacturerSpecificData?.let {
+            for (i in 0 until it.size()) {
+                mfg.put(it.keyAt(i), it.valueAt(i))
+            }
+        }
+        val isScannable = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            (result.dataStatus and ScanResult.DATA_COMPLETE) == ScanResult.DATA_COMPLETE
+        } else false
+        val isConnectable = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            result.isConnectable
+        } else false
+
+        handle(
+            deviceAddress = address,
+            deviceName = name,
+            rssi = result.rssi,
+            manufacturerData = mfg,
+            scanRecordBytes = scanRecord?.bytes,
+            isScannable = isScannable,
+            isConnectable = isConnectable
+        )
+    }
 
     /**
      * The list of devices discovered and managed by this handler.
@@ -60,3 +102,4 @@ interface BleDeviceHandler {
      */
     fun onCleared()
 }
+

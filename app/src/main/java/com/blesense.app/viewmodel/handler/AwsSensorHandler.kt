@@ -102,14 +102,17 @@ class AwsSensorHandler(
 
     // ── handle ───────────────────────────────────────────────────────────────
 
-    override suspend fun handle(result: ScanResult) {
+    override suspend fun handle(
+        deviceAddress: String,
+        deviceName: String?,
+        rssi: Int,
+        manufacturerData: SparseArray<ByteArray>,
+        scanRecordBytes: ByteArray?,
+        isScannable: Boolean,
+        isConnectable: Boolean
+    ) {
         try {
-            val device = result.device ?: return
-            val scanRecord = result.scanRecord ?: return
-            val deviceAddress = device.address ?: return
-            val manufacturerData = scanRecord.manufacturerSpecificData ?: return
-            val deviceName = scanRecord.deviceName ?: "N/A"
-
+            val devName = deviceName ?: "N/A"
             var sensorData: SensorData? = null
 
             if (manufacturerData.size() > 0) {
@@ -119,7 +122,7 @@ class AwsSensorHandler(
                     // AWS PROTECTION LOGIC:
                     // If this is an AWS device, we ONLY update if the packet explicitly contained
                     // the name. This prevents data from multiple same-MAC units colliding.
-                    if (scanRecord.deviceName == null) continue
+                    if (deviceName == null || deviceName == "N/A") continue
 
                     val parsed = parseAWSData(data, deviceAddress)
                     if (parsed != null) {
@@ -133,8 +136,8 @@ class AwsSensorHandler(
             if (sensorData == null) return
 
             // Use logical address: MAC_Name for AWS (shared MAC)
-            val logicalAddress = if (scanRecord.deviceName != null) {
-                "${deviceAddress}_${scanRecord.deviceName}"
+            val logicalAddress = if (deviceName != null && deviceName != "N/A") {
+                "${deviceAddress}_${deviceName}"
             } else {
                 val dId = sensorData.deviceId
                 "${deviceAddress}_$dId"
@@ -143,21 +146,19 @@ class AwsSensorHandler(
             val entry = HistoricalDataEntry(
                 timestamp = System.currentTimeMillis(),
                 sensorData = sensorData,
-                rawData = scanRecord.bytes
+                rawData = scanRecordBytes
             )
 
             // Update device list
             val bluetoothDevice = BluetoothDeviceModel(
-                name = deviceName,
+                name = devName,
                 address = logicalAddress,
-                rssi = result.rssi.toString(),
+                rssi = rssi.toString(),
                 deviceId = sensorData.deviceId,
                 sensorData = sensorData,
-                scanRecordBytes = scanRecord.bytes,
-                isScannable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    (result.dataStatus and ScanResult.DATA_COMPLETE) == ScanResult.DATA_COMPLETE else false,
-                isConnectable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    result.isConnectable else false
+                scanRecordBytes = scanRecordBytes,
+                isScannable = isScannable,
+                isConnectable = isConnectable
             )
 
             sharedSensorDataStream.tryEmit(sensorData)
@@ -166,6 +167,7 @@ class AwsSensorHandler(
             Log.e(TAG, "Error processing AWS scan: ${e.message}")
         }
     }
+
 
     // ── AWS Parsing ──────────────────────────────────────────────────────────
 

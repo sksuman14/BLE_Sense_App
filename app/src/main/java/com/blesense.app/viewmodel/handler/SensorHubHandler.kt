@@ -114,6 +114,8 @@ class SensorHubHandler(
         // Never handle DataLogger/DLOG
         if (deviceName?.contains("DataLogger", ignoreCase = true) == true) return false
         if (deviceName?.contains("DLOG", ignoreCase = true) == true) return false
+        // Never handle Step Counter
+        if (deviceName?.contains("Step", ignoreCase = true) == true) return false
 
         // Handle if name matches any sensor hub pattern
         if (deviceName != null) {
@@ -125,16 +127,19 @@ class SensorHubHandler(
         return false
     }
 
-    override suspend fun handle(result: ScanResult) {
+    override suspend fun handle(
+        deviceAddress: String,
+        deviceName: String?,
+        rssi: Int,
+        manufacturerData: SparseArray<ByteArray>,
+        scanRecordBytes: ByteArray?,
+        isScannable: Boolean,
+        isConnectable: Boolean
+    ) {
         try {
-            val device = result.device ?: return
-            val scanRecord = result.scanRecord ?: return
-            val deviceAddress = device.address ?: return
-            val manufacturerData = scanRecord.manufacturerSpecificData ?: return
-            val deviceName = scanRecord.deviceName ?: "N/A"
-
+            val devName = deviceName ?: "N/A"
             var sensorData: SensorData? = null
-            val deviceType = determineDeviceType(deviceName, deviceAddress)
+            val deviceType = determineDeviceType(devName, deviceAddress)
 
             if (manufacturerData.size() > 0) {
                 for (i in 0 until manufacturerData.size()) {
@@ -142,7 +147,7 @@ class SensorHubHandler(
 
                     // TempLogger Large Packet path (224 byte packets)
                     if (data.size >= 224) {
-                        val parsedTempLogger = parseTempLoggerData(data, deviceAddress, deviceName)
+                        val parsedTempLogger = parseTempLoggerData(data, deviceAddress, devName)
                         if (parsedTempLogger != null) {
                             sensorData = parsedTempLogger
                             break
@@ -158,7 +163,7 @@ class SensorHubHandler(
                         "VCNL4040" -> parseVCNL4040Data(data, deviceAddress)
                         "AHT20" -> parseAHT20Data(data, deviceAddress)
                         "BME680" -> parseBME680Data(data, deviceAddress)
-                        "TempLogger" -> parseTempLoggerData(data, deviceAddress, deviceName)
+                        "TempLogger" -> parseTempLoggerData(data, deviceAddress, devName)
                         "sen66" -> parseSen66Data(manufacturerData, deviceAddress)
                         "STS30" -> parseSTS30Data(data, deviceAddress)
                         "STTS751" -> parseSTTS751Data(data, deviceAddress)
@@ -167,7 +172,6 @@ class SensorHubHandler(
                         "Wind" -> parseWindData(data, deviceAddress)
                         else -> null
                     }
-
                     if (parsed != null) {
                         sensorData = parsed
                         break
@@ -179,27 +183,25 @@ class SensorHubHandler(
             if (deviceType == "Unknown Device" && sensorData == null) return
 
             val logicalAddress = ScanResultUtils.buildLogicalAddress(
-                deviceAddress, AWS_MAC, deviceType, scanRecord.deviceName, sensorData
+                deviceAddress, AWS_MAC, deviceType, devName, sensorData
             )
 
             val entry = HistoricalDataEntry(
                 timestamp = System.currentTimeMillis(),
                 sensorData = sensorData,
-                rawData = scanRecord.bytes
+                rawData = scanRecordBytes
             )
 
             // Update device list
             val bluetoothDevice = BluetoothDeviceModel(
-                name = deviceName,
+                name = devName,
                 address = logicalAddress,
-                rssi = result.rssi.toString(),
+                rssi = rssi.toString(),
                 deviceId = sensorData?.deviceId ?: "Unknown",
                 sensorData = sensorData,
-                scanRecordBytes = scanRecord.bytes,
-                isScannable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    (result.dataStatus and ScanResult.DATA_COMPLETE) == ScanResult.DATA_COMPLETE else false,
-                isConnectable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    result.isConnectable else false
+                scanRecordBytes = scanRecordBytes,
+                isScannable = isScannable,
+                isConnectable = isConnectable
             )
 
             if (sensorData != null) {
@@ -211,6 +213,7 @@ class SensorHubHandler(
             Log.e(TAG, "Error processing scan result: ${e.message}")
         }
     }
+
 
     override fun onCleared() {
         flusherJob?.cancel()

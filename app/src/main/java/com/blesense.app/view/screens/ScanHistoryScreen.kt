@@ -29,7 +29,9 @@ import com.blesense.app.model.SensorData
 import com.blesense.app.ui.theme.BleSenseColors
 import com.blesense.app.util.ThemeManager
 import com.blesense.app.view.components.ReferenceBottomNavBar
+import com.blesense.app.view.components.StandardScreenHeaderBar
 import com.blesense.app.viewmodel.BluetoothScanViewModel
+import androidx.compose.material.icons.filled.History
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,25 +55,6 @@ fun ScanHistoryScreen(
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
         containerColor = bgColor,
-        topBar = {
-            TopAppBar(
-                title = { 
-                    Text("BigAdv & BLE Scan History", 
-                        fontWeight = FontWeight.Bold,
-                        color = textPrimary,
-                        fontSize = 18.sp
-                    ) 
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textPrimary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = cardBg
-                )
-            )
-        },
         bottomBar = {
             if (navController is NavHostController) {
                 ReferenceBottomNavBar(
@@ -90,12 +73,21 @@ fun ScanHistoryScreen(
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item {
+                    StandardScreenHeaderBar(
+                        title = "Scan History",
+                        subtitle = "Previously discovered BLE devices",
+                        isDarkMode = isDarkMode,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+                
+                item {
                     Text(
-                        "Scanned BigAdv Raw Data Devices (${scannedHistoryDevices.size})",
+                        "Recorded Devices (${scannedHistoryDevices.size})",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = textPrimary
@@ -157,16 +149,17 @@ fun BigAdvHistoryItemCard(
     val textPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
     val textSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
 
+    val cardBgColor = if (isDarkMode) Color(0xFF061428) else Color.White
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .shadow(if (isDarkMode) 16.dp else 2.dp, RoundedCornerShape(20.dp), spotColor = if(isDarkMode) Color(0xFF059669).copy(alpha=0.3f) else Color.Black.copy(0.05f))
             .clip(RoundedCornerShape(20.dp))
-            .background(cardBg)
-            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
+            .background(cardBgColor)
+            .border(1.dp, if (isDarkMode) Color(0xFF059669).copy(alpha=0.2f) else borderColor, RoundedCornerShape(20.dp))
             .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg)
+        colors = CardDefaults.cardColors(containerColor = cardBgColor)
     ) {
         Row(
             modifier = Modifier

@@ -7,10 +7,16 @@ import android.app.Activity
 import android.widget.Toast
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
-import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseData
-import android.bluetooth.le.AdvertiseSettings
-import android.bluetooth.le.BluetoothLeAdvertiser
+import no.nordicsemi.android.kotlin.ble.advertiser.BleAdvertiser
+import no.nordicsemi.android.kotlin.ble.core.advertiser.BleAdvertisingConfig
+import no.nordicsemi.android.kotlin.ble.core.advertiser.BleAdvertisingData
+import no.nordicsemi.android.kotlin.ble.core.advertiser.BleAdvertisingInterval
+import no.nordicsemi.android.kotlin.ble.core.advertiser.BleAdvertisingSettings
+import no.nordicsemi.android.kotlin.ble.core.advertiser.BleTxPowerLevel
+import no.nordicsemi.android.kotlin.ble.core.advertiser.ManufacturerData
+import no.nordicsemi.android.kotlin.ble.core.data.util.DataByteArray
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.withTimeoutOrNull
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -26,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.DeveloperBoard
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,9 +57,11 @@ import com.blesense.app.util.*
 import com.blesense.app.view.components.*
 import com.blesense.app.repository.DataLoggerRepository
 import com.blesense.app.model.DataLoggerConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -212,70 +221,7 @@ fun parseRawDataToPackets(bytes: ByteArray): List<ParsedPacket> {
 
 
 
-// ─── BleCommandSender ─────────────────────────────────────────────────────────
 
-class BleCommandSender(private val context: Context) {
-    private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-    private val adapter: BluetoothAdapter?         = bluetoothManager.adapter
-    private val advertiser: BluetoothLeAdvertiser? = adapter?.bluetoothLeAdvertiser
-
-    private val companyId = 0x0059
-    private var currentCallback: AdvertiseCallback? = null
-    private var advertisingJob: Job? = null
-
-    private fun hasAdvertisePermission(): Boolean =
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
-            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) ==
-                    PackageManager.PERMISSION_GRANTED
-        else true
-
-    fun sendCommand(command: ByteArray, deviceAddress: String? = null, durationMs: Long = 10000) {
-        if (!hasAdvertisePermission() || advertiser == null || command.isEmpty()) return
-        stopAdvertising()
-
-        val finalPayload = if (deviceAddress != null) {
-            try {
-                val macBytes = deviceAddress.split(":").map { it.toInt(16).toByte() }.toByteArray()
-                command + macBytes
-            } catch (_: Exception) { command }
-        } else command
-
-        val data = AdvertiseData.Builder()
-            .addManufacturerData(companyId, finalPayload)
-            .setIncludeDeviceName(false)
-            .setIncludeTxPowerLevel(false)
-            .build()
-
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(false)
-            .setTimeout(0)
-            .build()
-
-        currentCallback = object : AdvertiseCallback() {}
-
-        try {
-            advertiser.startAdvertising(settings, data, currentCallback)
-            advertisingJob = MainScope().launch {
-                delay(durationMs)
-                stopAdvertising()
-            }
-        } catch (e: SecurityException) { e.printStackTrace() }
-    }
-
-    fun stopAdvertising() {
-        advertisingJob?.cancel()
-        advertisingJob = null
-        if (!hasAdvertisePermission()) return
-        try {
-            currentCallback?.let {
-                advertiser?.stopAdvertising(it)
-                currentCallback = null
-            }
-        } catch (e: SecurityException) { e.printStackTrace() }
-    }
-}
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -514,7 +460,6 @@ fun DataLoggerScreen(
     }
     val context      = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val commandSender  = remember { BleCommandSender(context) }
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val theme = remember(isDarkMode) { DataLoggerTheme.create(isDarkMode) }
 
@@ -574,19 +519,21 @@ fun DataLoggerScreen(
     // ─── UI Logic ─────────────────────────────────────────────────────────
 
     var firstReceivedBundleId by remember { mutableIntStateOf(-1) }
-    var isFinalDataAvailable by remember { mutableStateOf(false) }
+    var isFinalDataAvailable by remember { mutableStateOf(packetHistory.isNotEmpty()) }
+    var visibleLimit by remember { mutableIntStateOf(15) }
     
-    LaunchedEffect(packetHistory.size) {
-        if (packetHistory.size > 0) {
+    LaunchedEffect(capturedCount, expectedCount) {
+        if (capturedCount > 0) {
             isFinalDataAvailable = true
             isGettingData = false // Stop loading on first packet
-            syncState = DataLoggerSyncState.SYNCING
-        }
-    }
-
-    LaunchedEffect(packetHistory) {
-        if (packetHistory.isNotEmpty() && firstReceivedBundleId == -1) {
-            firstReceivedBundleId = packetHistory.first().lastPacketId
+            if (firstReceivedBundleId == -1) {
+                firstReceivedBundleId = 1
+            }
+            if (expectedCount > 0 && capturedCount >= expectedCount) {
+                syncState = DataLoggerSyncState.COMPLETE
+            } else {
+                syncState = DataLoggerSyncState.SYNCING
+            }
         }
     }
 
@@ -596,28 +543,15 @@ fun DataLoggerScreen(
             horizontalAlignment = Alignment.Start
         ) {
             // ── Header ──────────────────────────────────────────────────────
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { viewModel.stopScan(); navController.popBackStack() }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = theme.textPrimary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Surface(modifier = Modifier.size(42.dp), color = theme.cardBackground, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, theme.border)) {
-                        Icon(Icons.Default.Refresh, null, tint = theme.accentOrange, modifier = Modifier.padding(10.dp))
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column {
-                        Text(loggerConfig.name, fontFamily = Monospace, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
-                    }
+            StandardScreenHeaderBar(
+                title = loggerConfig.name,
+                subtitle = "Device ID: ${loggerConfig.deviceId} • MAC: ${loggerConfig.advertiserAddress}",
+                isDarkMode = isDarkMode,
+                onBackClick = {
+                    viewModel.stopScan()
+                    navController.popBackStack()
                 }
-                Surface(color = theme.badgeBg, shape = RoundedCornerShape(100.dp), border = BorderStroke(1.dp, theme.badgeBorder)) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(6.dp).background(theme.badgeText, CircleShape))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Linked", color = theme.badgeText, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+            )
 
             Spacer(Modifier.height(24.dp))
 
@@ -625,8 +559,9 @@ fun DataLoggerScreen(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = {
+                        visibleLimit = 15
                         activeTimeoutJob.value?.cancel()
-                        commandSender.stopAdvertising()
+                        viewModel.stopTrigger()
                         
                         firstReceivedBundleId = -1
                         isFinalDataAvailable = false
@@ -636,28 +571,41 @@ fun DataLoggerScreen(
                         isResetting = false
 
                         activeTimeoutJob.value = coroutineScope.launch {
-                            val triggerDuration = 10000L // 10 second continuous trigger
-                            viewModel.startTrigger(loggerConfig.getDataCommand, loggerConfig.advertiserAddress, triggerDuration)
+                            // 1. Prime scanner: ensure BLE scan is 100% active and healthy in native HAL
+                            viewModel.prepareForDataCapture()
+                            delay(150L)
+
+                            // 2. Pulse trigger for 750ms (~25-35 advertise packets)
+                            // Stopping before 1.0s ensures phone radio Tx is completely OFF
+                            // before the hardware finishes its 2.0s flash setup and blasts Bundle 1!
+                            viewModel.startTrigger(loggerConfig.getDataCommand, loggerConfig.advertiserAddress, 750L)
                             
-                            // Monitor for 15 seconds to see if data starts
+                            // Monitor for incoming data; if no packets after 3.0s, send another quick pulse
                             var elapsedMs = 0
                             while (isActive && elapsedMs < 15000) {
-                                val currentHistory = viewModel.dataLoggerPacketHistory.value[loggerConfig.deviceId] ?: emptyList()
-                                if (currentHistory.isNotEmpty()) {
+                                delay(200)
+                                elapsedMs += 200
+
+                                if (viewModel.capturedCount.value > 0) {
                                     viewModel.stopTrigger()
                                     break 
                                 }
-                                delay(500)
-                                elapsedMs += 500
+
+                                // Retry chirp pulse every 3 seconds if no data has started yet
+                                if (elapsedMs % 3000 == 0 && viewModel.capturedCount.value == 0) {
+                                    android.util.Log.d("BLE", "No response yet, sending retry trigger pulse...")
+                                    viewModel.startTrigger(loggerConfig.getDataCommand, loggerConfig.advertiserAddress, 600L)
+                                }
                             }
                             
                             // If no data received after 15s, stop loading
                             val finalHistory = viewModel.dataLoggerPacketHistory.value[loggerConfig.deviceId] ?: emptyList()
-                            if (finalHistory.isEmpty()) {
+                            if (finalHistory.isEmpty() && viewModel.capturedCount.value == 0) {
                                 isGettingData = false
                             }
                         }
                     },
+
                     colors = ButtonDefaults.buttonColors(
                         containerColor = theme.accentOrange,
                         contentColor = Color.White,
@@ -678,13 +626,15 @@ fun DataLoggerScreen(
 
                 OutlinedButton(
                     onClick = {
+                        visibleLimit = 15
                         activeTimeoutJob.value?.cancel()
-                        commandSender.stopAdvertising()
+                        viewModel.stopTrigger()
                         
                         firstReceivedBundleId = -1
                         isGettingData = false
                         isResetting = true
-                        commandSender.sendCommand(loggerConfig.resetCommand, loggerConfig.advertiserAddress, 10000)
+                        viewModel.refreshScan()
+                        viewModel.startTrigger(loggerConfig.resetCommand, loggerConfig.advertiserAddress, 10000L)
                         activeTimeoutJob.value = coroutineScope.launch {
                             delay(10000)
                             isResetting = false
@@ -797,10 +747,23 @@ fun DataLoggerScreen(
                     coroutineScope.launch(Dispatchers.IO) {
                         try {
                             context.contentResolver.openOutputStream(uri)?.use { os ->
-                                os.write("Timestamp,Device_ID,Packet_ID,Last_Packet_ID,Raw_Hex\n".toByteArray())
-                                packetHistory.reversed().forEach { packet ->
-                                    val line = "${SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date(packet.timestamp))},${packet.deviceId},${packet.lastPacketId},${packet.currentPacketId},\"${packet.rawDataHex}\"\n"
-                                    os.write(line.toByteArray())
+                                os.bufferedWriter(Charsets.UTF_8).use { writer ->
+                                    writer.write("Timestamp,Device_ID,Packet_ID,Last_Packet_ID,Raw_Hex\n")
+                                    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+                                    val snapshot = packetHistory.reversed()
+                                    for (packet in snapshot) {
+                                        writer.write(sdf.format(Date(packet.timestamp)))
+                                        writer.write(",")
+                                        writer.write(packet.deviceId)
+                                        writer.write(",")
+                                        writer.write(packet.lastPacketId.toString())
+                                        writer.write(",")
+                                        writer.write(packet.currentPacketId.toString())
+                                        writer.write(",\"")
+                                        writer.write(packet.rawDataHex)
+                                        writer.write("\"\n")
+                                    }
+                                    writer.flush()
                                 }
                             }
                         } catch (_: Exception) {} finally { withContext(Dispatchers.Main) { isExporting = false } }
@@ -830,8 +793,12 @@ fun DataLoggerScreen(
 
             // ── Manifest ────────────────────────────────────────────────────
             var showManifest by remember { mutableStateOf(true) }
+            val showManifestContent = isGettingData || isFinalDataAvailable
+            val activeHistory = if (showManifestContent) packetHistory else emptyList()
+
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("PACKET MANIFEST", color = theme.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                val manifestCountLabel = if (activeHistory.isNotEmpty()) " (${activeHistory.size})" else ""
+                Text("PACKET MANIFEST$manifestCountLabel", color = theme.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Switch(
                     checked = showManifest,
                     onCheckedChange = { showManifest = it },
@@ -846,8 +813,6 @@ fun DataLoggerScreen(
 
             if (showManifest) {
                 Spacer(Modifier.height(16.dp))
-                val showManifestContent = isGettingData || isFinalDataAvailable
-                val activeHistory = if (showManifestContent) packetHistory else emptyList()
 
                 if (activeHistory.isEmpty()) {
                     Text(
@@ -858,11 +823,10 @@ fun DataLoggerScreen(
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
-                    var visibleLimit by remember { mutableIntStateOf(15) }
-                    
                     val displayList = remember(activeHistory, visibleLimit) {
                         activeHistory.takeLast(visibleLimit).reversed()
                     }
+                    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         displayList.forEachIndexed { i, p ->
@@ -870,7 +834,7 @@ fun DataLoggerScreen(
                                 index = activeHistory.size - i,
                                 id = p.lastPacketId,
                                 total = p.currentPacketId,
-                                time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(p.timestamp)),
+                                time = timeFormat.format(Date(p.timestamp)),
                                 rawData = p.rawDataHex,
                                 theme = theme
                             )

@@ -3,7 +3,9 @@ package com.blesense.app.view.screens
 import android.app.Activity
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,15 +98,19 @@ fun BigAdvScannerScreen(
     var selectedDeviceAddr by remember { mutableStateOf<String?>(null) }
     var selectedDeviceId   by remember { mutableStateOf<String?>(null) }
     
-    // Stable list to prevent UI from "dancing" too fast
-    var stableDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
-    
-    // Throttle list updates to once every 1.5 seconds to prevent "dancing"
-    LaunchedEffect(Unit) {
-        while(true) {
-            stableDevices = devices.sortedByDescending { it.lastSeen }
-            delay(1500)
+    // Keep discovery order completely stable so cards never jump positions or blink
+    val discoveredAddresses = remember { mutableListOf<String>() }
+
+    val stableDevices = remember(devices) {
+        devices.forEach { dev ->
+            if (!discoveredAddresses.contains(dev.address)) {
+                discoveredAddresses.add(dev.address)
+            }
         }
+        val devMap = devices.associateBy { it.address }
+        val list = discoveredAddresses.mapNotNull { devMap[it] }
+        // Keep Test devices pinned at the top, and all other devices in fixed stable discovery order
+        list.sortedByDescending { it.name.contains("test", ignoreCase = true) }
     }
     val context = LocalContext.current
     val activity = context as? Activity
@@ -118,7 +124,7 @@ fun BigAdvScannerScreen(
     /*
     LaunchedEffect(Unit) {
         activity?.let {
-            viewModel.startContinuousScan(it)
+            viewModel.startContinuousScan(it, enableExtended = true)
         }
     }
     */
@@ -161,31 +167,21 @@ fun BigAdvScannerScreen(
             modifier = Modifier.systemBarsPadding(),
             backgroundColor = darkBackground,
             topBar = {
-                TopAppBar(
-                    backgroundColor = darkSurface,
-                    elevation = 0.dp,
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .background(greenAccent, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Sensors, null, tint = BleSenseColors.PrimaryGreenDark, modifier = Modifier.size(18.dp))
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("BigAdv Scanner", color = textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("Extended Adv + Raw Payload", color = textSecondary, fontSize = 10.sp)
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = textPrimary)
-                        }
-                    }
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    StandardScreenHeaderBar(
+                        title = "Raw Scanner",
+                        subtitle = "Extended Adv + Raw Payload Inspector",
+                        isDarkMode = isDarkMode,
+                        isScanning = isScanning,
+                        onBackClick = { navController.popBackStack() }
+                    )
+                }
+            },
+            bottomBar = {
+                ReferenceBottomNavBar(
+                    navController = navController,
+                    currentRoute = "bigadv_scanner_screen",
+                    isDarkMode = isDarkMode
                 )
             }
         ) { padding ->
@@ -254,7 +250,10 @@ fun BigAdvScannerScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        items(filteredDevices) { device ->
+                        items(
+                            items = filteredDevices,
+                            key = { it.address }
+                        ) { device ->
                             BigAdvDeviceItem(
                                 device = device,
                                 onClick = {
@@ -446,13 +445,22 @@ fun BigAdvDeviceItem(
     textSecondary: Color,
     accentColor: Color
 ) {
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val bg = if (isDarkMode) BleSenseColors.SurfaceDark else Color.White
+    val border = if (isDarkMode) BleSenseColors.BorderDark else Color(0xFFE2EEF9)
+
     Card(
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = cardColor,
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+        shape = RoundedCornerShape(20.dp),
+        backgroundColor = bg,
+        elevation = 0.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .border(1.dp, border, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {

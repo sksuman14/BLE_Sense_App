@@ -50,6 +50,7 @@ import com.blesense.app.viewmodel.*
 import com.blesense.app.repository.*
 import com.blesense.app.util.*
 import com.blesense.app.view.components.*
+import com.blesense.app.view.components.StandardScreenHeaderBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
@@ -109,54 +110,18 @@ fun AWSAdvertisingScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             // Top Bar
-            Surface(
-                color     = surfaceColor,
-                tonalElevation = 0.dp,
-                modifier  = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textPrimary)
+            Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                StandardScreenHeaderBar(
+                    title = deviceName,
+                    subtitle = deviceAddress,
+                    isDarkMode = isDarkMode,
+                    onBackClick = { navController.popBackStack() },
+                    actions = {
+                        IconButton(onClick = { navController.navigate("aws_live_hub") }) {
+                            Icon(Icons.Default.Analytics, contentDescription = "Analytics", tint = Color(0xFFEA580C))
+                        }
                     }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .background(GreenAccent.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Cloud, null, tint = GreenAccent, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = deviceName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = deviceAddress,
-                            fontSize = 10.sp,
-                            color = textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    
-                    IconButton(onClick = { navController.navigate("aws_live_hub") }) {
-                        Icon(Icons.Default.Analytics, contentDescription = "Analytics", tint = GreenAccent)
-                    }
-                }
+                )
             }
 
             Column(

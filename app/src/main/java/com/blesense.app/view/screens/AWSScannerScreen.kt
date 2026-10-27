@@ -2,16 +2,13 @@ package com.blesense.app.view.screens
 
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -21,33 +18,28 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import com.blesense.app.ui.theme.BleSenseColors
-import com.blesense.app.model.*
 import com.blesense.app.model.BluetoothDeviceModel as BluetoothDevice
-import com.blesense.app.viewmodel.*
-import com.blesense.app.repository.*
-import com.blesense.app.util.*
-import com.blesense.app.view.components.*
-import kotlinx.coroutines.launch
+import com.blesense.app.model.SensorData
+import com.blesense.app.util.ThemeManager
+import com.blesense.app.view.components.ReferenceBottomNavBar
+import com.blesense.app.view.components.StandardScreenHeaderBar
+import com.blesense.app.viewmodel.BluetoothScanViewModel
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
@@ -59,7 +51,7 @@ fun AWSScannerScreen(
     val awsDevices = remember(bluetoothDevicesRaw) {
         bluetoothDevicesRaw.filter { it.sensorData is SensorData.AWSData }
     }
-    
+
     val isScanning by bluetoothViewModel.isScanning.collectAsState()
     val context = LocalContext.current
     val activity = context as ComponentActivity
@@ -67,6 +59,11 @@ fun AWSScannerScreen(
     val bluetoothAdapter = remember { BluetoothAdapter.getDefaultAdapter() }
 
     val bgColor = if (isDarkMode) BleSenseColors.BackgroundDark else BleSenseColors.LightBackground
+
+    // Ensure AWS scanner scans completely independently on its own!
+    LaunchedEffect(Unit) {
+        bluetoothViewModel.ensureScanning(activity)
+    }
 
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
@@ -85,12 +82,12 @@ fun AWSScannerScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp)
+            contentPadding = PaddingValues(top = 24.dp, bottom = 24.dp)
         ) {
             // Header
             item {
-                ScannerHeaderBar(
-                    title = "AWS Scanner",
+                StandardScreenHeaderBar(
+                    title = "AWS Station",
                     subtitle = "AWS Weather Station Hub",
                     isDarkMode = isDarkMode,
                     isScanning = isScanning,
@@ -138,7 +135,7 @@ fun AWSScannerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "Discovered AWS Sensors (${awsDevices.size})",
+                        text = "Discovered AWS Sensors (${awsDevices.size})",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
@@ -161,7 +158,12 @@ fun AWSScannerScreen(
                             }
                         }
                     }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF2563EB), modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }
@@ -185,63 +187,6 @@ fun AWSScannerScreen(
 }
 
 @Composable
-private fun ScannerHeaderBar(
-    title: String,
-    subtitle: String,
-    isDarkMode: Boolean,
-    isScanning: Boolean,
-    onBackClick: () -> Unit
-) {
-    val cardBg = if (isDarkMode) BleSenseColors.SurfaceDark else Color.White
-    val borderColor = if (isDarkMode) BleSenseColors.BorderDark else Color(0xFFE2EEF9)
-    val textPrimary = if (isDarkMode) BleSenseColors.TextPrimary else BleSenseColors.LightTextPrimary
-    val textSecondary = if (isDarkMode) BleSenseColors.TextSecondary else BleSenseColors.LightTextSecondary
-
-    val infiniteTransition = rememberInfiniteTransition(label = "scan_dot")
-    val dotAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "dot_alpha"
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(2.dp, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
-            .background(cardBg)
-            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            onClick = onBackClick,
-            modifier = Modifier
-                .size(34.dp)
-                .background(if (isDarkMode) BleSenseColors.SurfaceLight else Color(0xFFF1F5F9), CircleShape)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textPrimary, modifier = Modifier.size(18.dp))
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                if (isScanning) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(Color(0xFF10B981).copy(alpha = dotAlpha), CircleShape)
-                    )
-                }
-            }
-            Text(subtitle, fontSize = 10.sp, color = textSecondary)
-        }
-    }
-}
-
-@Composable
 private fun AWSHeroCard(
     isDarkMode: Boolean,
     isScanning: Boolean,
@@ -256,17 +201,17 @@ private fun AWSHeroCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(3.dp, RoundedCornerShape(22.dp))
-            .clip(RoundedCornerShape(22.dp))
+            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(cardBg)
-            .border(1.dp, borderColor, RoundedCornerShape(22.dp))
-            .padding(16.dp),
+            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column {
             Text("AWS Network Scanner", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Text(
                 if (isScanning) "Searching for AWS weather pods..." else "Scanner paused",
                 fontSize = 11.sp,
@@ -327,12 +272,12 @@ fun AWSDeviceCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFFECFDF5)),
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFFFF7ED)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Cloud, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Cloud, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(22.dp))
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -349,7 +294,7 @@ private fun EmptyAWSCard(isDarkMode: Boolean, isScanning: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(120.dp)
+            .height(110.dp)
             .shadow(2.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(if (isDarkMode) BleSenseColors.SurfaceDark else Color.White)
@@ -358,7 +303,7 @@ private fun EmptyAWSCard(isDarkMode: Boolean, isScanning: Boolean) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(28.dp))
+            Icon(Icons.Default.CloudQueue, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(26.dp))
             Text(
                 if (isScanning) "Searching for AWS sensors..." else "No AWS sensors found",
                 fontSize = 13.sp,
@@ -380,5 +325,3 @@ private fun checkBluetoothPermissions(context: Context): Boolean {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 }
-
-

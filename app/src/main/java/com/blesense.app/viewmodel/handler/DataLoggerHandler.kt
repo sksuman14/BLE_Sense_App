@@ -45,18 +45,61 @@ class DataLoggerHandler(
 
     private var cachedSelectedIdDigits: Int? = null
 
+    // ── Per-Device Stats Isolation ───────────────────────────────────────────
+    data class DeviceSyncStats(
+        var capturedCount: Int = 0,
+        var expectedCount: Int = 0,
+        var r1Count: Int = 0,
+        var r2Count: Int = 0,
+        var r3Count: Int = 0
+    )
+
+    private val deviceStatsMap = java.util.concurrent.ConcurrentHashMap<String, DeviceSyncStats>()
+
     fun setSelectedDataLogger(deviceId: String?, address: String?) {
         _selectedDataLoggerDeviceId.value = if (deviceId.isNullOrBlank()) null else deviceId
-        _selectedDataLoggerAddress.value = if (address.isNullOrBlank()) null else address
+        val normAddr = address?.trim()?.uppercase()
+        _selectedDataLoggerAddress.value = if (normAddr.isNullOrBlank()) null else normAddr
         cachedSelectedIdDigits = deviceId?.filter { it.isDigit() }?.toIntOrNull()
-        Log.d(TAG, "Selected DataLogger: ID=$deviceId, Address=$address")
+
+        // Immediately bind UI StateFlow counters to the stats of the selected device
+        if (normAddr != null) {
+            val stats = deviceStatsMap[normAddr]
+            if (stats != null) {
+                _capturedCount.value = stats.capturedCount
+                _expectedCount.value = stats.expectedCount
+                _r1Count.value = stats.r1Count
+                _r2Count.value = stats.r2Count
+                _r3Count.value = stats.r3Count
+            } else {
+                _capturedCount.value = 0
+                _expectedCount.value = 0
+                _r1Count.value = 0
+                _r2Count.value = 0
+                _r3Count.value = 0
+            }
+        } else {
+            _capturedCount.value = 0
+            _expectedCount.value = 0
+            _r1Count.value = 0
+            _r2Count.value = 0
+            _r3Count.value = 0
+        }
+        Log.d(TAG, "Selected DataLogger: ID=$deviceId, Address=$normAddr")
     }
 
-    // ── Packet History & Streams ─────────────────────────────────────────────
+    // ── Packet Storage & History ─────────────────────────────────────────────
+    // Zero-allocation thread-safe internal packet storage
+    private val devicePacketStorage = java.util.concurrent.ConcurrentHashMap<String, MutableList<SensorData.DataLoggerData>>()
+
+    // Lightweight UI Manifest StateFlow — contains ONLY the latest 15 packets for the selected device
+    private val _recentManifestPackets = MutableStateFlow<List<SensorData.DataLoggerData>>(emptyList())
+    val recentManifestPackets: StateFlow<List<SensorData.DataLoggerData>> = _recentManifestPackets.asStateFlow()
+
     val dataLoggerPacketHistory = MutableStateFlow<Map<String, List<SensorData.DataLoggerData>>>(emptyMap())
 
     private val _latestDataLoggerPacket = MutableSharedFlow<SensorData.DataLoggerData?>(
-        extraBufferCapacity = 20000,
+        extraBufferCapacity = 50000,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val latestDataLoggerPacket: SharedFlow<SensorData.DataLoggerData?> = _latestDataLoggerPacket.asSharedFlow()
@@ -104,10 +147,10 @@ class DataLoggerHandler(
         var currentRound: Int = 0
         var lastBundleIdReceiveTime: Long = 0L
         var firstBundleFirstPacketId: Int = -1
-        val receivedPacketIds = BitSet(20000)
-        val r1PacketIds = BitSet(20000)
-        val r2PacketIds = BitSet(20000)
-        val r3PacketIds = BitSet(20000)
+        val receivedPacketIds = BitSet(65536)
+        val r1PacketIds = BitSet(65536)
+        val r2PacketIds = BitSet(65536)
+        val r3PacketIds = BitSet(65536)
     }
 
 
@@ -115,10 +158,35 @@ class DataLoggerHandler(
     private val deviceDumpBaseTimes = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val deviceUniqueIdBitSets = java.util.concurrent.ConcurrentHashMap<String, BitSet>()
 
-    // ── Trigger State ────────────────────────────────────────────────────────
+    @Volatile
     var hasAutoStoppedTriggerForSession = false
+    var onFirstPacketReceived: (() -> Unit)? = null
+
+    // Tracks activity to prevent mid-stream radio restart during high-volume blasts
+    @Volatile
+    var lastPacketReceivedTime: Long = 0L
+        private set
+
+    fun isReceivingPacketsActive(): Boolean {
+        val elapsed = System.currentTimeMillis() - lastPacketReceivedTime
+        return elapsed in 0..3000L
+    }
+
+    fun isExpectingMorePackets(): Boolean {
+        val selectedAddr = _selectedDataLoggerAddress.value
+        if (selectedAddr != null) {
+            val stats = deviceStatsMap[selectedAddr]
+            if (stats != null) {
+                return stats.expectedCount > 0 && stats.capturedCount > 0 && stats.capturedCount < stats.expectedCount
+            }
+        }
+        val exp = _expectedCount.value
+        val cap = _capturedCount.value
+        return exp > 0 && cap > 0 && cap < exp
+    }
 
     // ── History ──────────────────────────────────────────────────────────────
+
     private val deviceHistoricalData = HashMap<String, ArrayDeque<HistoricalDataEntry>>()
 
     // ── App ID ───────────────────────────────────────────────────────────────
@@ -176,40 +244,73 @@ class DataLoggerHandler(
 
         val now = System.currentTimeMillis()
 
-        // Update stats incrementally
-        val sample = drained.lastOrNull()
-        if (sample != null) {
-            val dAddr = sample.deviceAddress
+        // Update stats incrementally in batch (every 100ms) without locking up the packet receiver
+        val selectedAddr = _selectedDataLoggerAddress.value
+        val distinctAddresses = drained.map { it.deviceAddress.trim().uppercase() }.distinct()
+        for (dAddr in distinctAddresses) {
             val tracker = deviceBundleTracker[dAddr]
-            if (tracker != null) {
+            val devStats = deviceStatsMap[dAddr]
+            if (tracker != null && devStats != null) {
                 synchronized(tracker) {
-                    _capturedCount.value = tracker.receivedPacketIds.cardinality()
-                    _r1Count.value = tracker.r1PacketIds.cardinality()
-                    _r2Count.value = tracker.r2PacketIds.cardinality()
-                    _r3Count.value = tracker.r3PacketIds.cardinality()
+                    devStats.capturedCount = tracker.receivedPacketIds.cardinality()
+                    devStats.r1Count = tracker.r1PacketIds.cardinality()
+                    devStats.r2Count = tracker.r2PacketIds.cardinality()
+                    devStats.r3Count = tracker.r3PacketIds.cardinality()
                     
-                    val totalId = sample.currentPacketId
-                    val firstPacketId = tracker.firstBundleFirstPacketId
-                    val firstBundleId = if (firstPacketId != -1) firstPacketId - ((firstPacketId - 1) % 6) else -1
-                    
-                    if (totalId > 0 && firstBundleId > 0) {
-                        _expectedCount.value = (totalId - firstBundleId + 1).coerceAtLeast(0)
+                    val lastPacket = drained.lastOrNull { it.deviceAddress.equals(dAddr, ignoreCase = true) }
+                    val totalId = lastPacket?.currentPacketId ?: devStats.expectedCount
+                    if (totalId > 0) {
+                        val firstId = tracker.firstBundleFirstPacketId
+                        val calculatedExpected = if (firstId > 0 && totalId >= firstId) {
+                            totalId - firstId + 1
+                        } else {
+                            totalId
+                        }
+                        devStats.expectedCount = maxOf(calculatedExpected, devStats.capturedCount)
+                    }
+
+                    if (selectedAddr == null || dAddr.equals(selectedAddr, ignoreCase = true)) {
+                        _capturedCount.value = devStats.capturedCount
+                        _r1Count.value = devStats.r1Count
+                        _r2Count.value = devStats.r2Count
+                        _r3Count.value = devStats.r3Count
+                        _expectedCount.value = devStats.expectedCount
                     }
                 }
             }
         }
 
-        // Update History Map
-        dataLoggerPacketHistory.update { currentMap ->
-            val mutableMap = currentMap.toMutableMap()
-            drained.groupBy { it.deviceId }.forEach { (id, packets) ->
-                val existing = mutableMap[id] ?: emptyList()
-                val newList = ArrayList<SensorData.DataLoggerData>(existing.size + packets.size)
-                newList.addAll(existing)
-                newList.addAll(packets)
-                mutableMap[id] = newList
+        // 1. In-place append to devicePacketStorage — ZERO array copies, ZERO GC allocations!
+        drained.groupBy { it.deviceId }.forEach { (id, packets) ->
+            val list = devicePacketStorage.getOrPut(id) { java.util.Collections.synchronizedList(ArrayList<SensorData.DataLoggerData>(15000)) }
+            synchronized(list) {
+                list.addAll(packets)
+                if (list.size > 50000) {
+                    val excess = list.size - 50000
+                    list.subList(0, excess).clear()
+                }
             }
-            mutableMap
+        }
+
+        // 2. Update recentManifestPackets with up to 150 items so all packets can be viewed
+        val selectedId = _selectedDataLoggerDeviceId.value
+        val targetList = if (selectedId != null) devicePacketStorage[selectedId] else devicePacketStorage.values.firstOrNull()
+        if (targetList != null) {
+            val manifestPackets = synchronized(targetList) {
+                targetList.takeLast(150).toList()
+            }
+            _recentManifestPackets.value = manifestPackets
+        }
+
+        // 3. Throttle full dataLoggerPacketHistory updates so Compose doesn't re-render 5,000 items 10 times a second
+        // Emit full map once every 1.5 seconds, or when drained queue is empty (end of burst)
+        if (now - lastHistoryUpdateTime >= 1500 || pendingDataLoggerPackets.isEmpty()) {
+            lastHistoryUpdateTime = now
+            val snapshot = HashMap<String, List<SensorData.DataLoggerData>>(devicePacketStorage.size)
+            devicePacketStorage.forEach { (id, list) ->
+                snapshot[id] = synchronized(list) { ArrayList(list) }
+            }
+            dataLoggerPacketHistory.value = snapshot
         }
 
         val lastItem = drained.lastOrNull()
@@ -232,6 +333,9 @@ class DataLoggerHandler(
         deviceAddress: String,
         manufacturerData: SparseArray<ByteArray>
     ): Boolean {
+        // Never handle Step Counter
+        if (deviceName?.contains("Step", ignoreCase = true) == true) return false
+
         // 1. Explicitly selected address always allowed
         if (deviceAddress.equals(_selectedDataLoggerAddress.value, ignoreCase = true)) return true
 
@@ -240,16 +344,17 @@ class DataLoggerHandler(
                                deviceName?.contains("DLOG", ignoreCase = true) == true
         if (isDataLoggerName) return true
 
-        // 3. For raw packet scanning based on size, we require the device to have a known name
-        // or name pattern. Nameless devices ("N/A") often represent random BLE noise from
-        // other systems and should be ignored unless explicitly selected.
-        val hasValidName = !deviceName.isNullOrBlank() && deviceName != "N/A"
-
+        // 3. For BigAdv packets (240+ bytes):
+        // Allow if no specific address selected, or if byte 2 matches selected node ID, or if device name matches
         for (i in 0 until manufacturerData.size()) {
             val data = manufacturerData.valueAt(i) ?: continue
-            // BigAdv packets are typically 246+ bytes.
             if (data.size >= 240) {
-                return hasValidName
+                val selDigits = cachedSelectedIdDigits
+                if (selDigits != null) {
+                    val nodeId = data.getOrNull(2)?.toInt()?.and(0xFF)
+                    if (nodeId == selDigits) return true
+                }
+                return true
             }
         }
         return false
@@ -257,14 +362,16 @@ class DataLoggerHandler(
 
     // ── handle ───────────────────────────────────────────────────────────────
 
-    @SuppressLint("MissingPermission")
-    override suspend fun handle(result: ScanResult) {
+    override suspend fun handle(
+        deviceAddress: String,
+        deviceName: String?,
+        rssi: Int,
+        manufacturerData: SparseArray<ByteArray>,
+        scanRecordBytes: ByteArray?,
+        isScannable: Boolean,
+        isConnectable: Boolean
+    ) {
         try {
-            val deviceAddress = result.device.address ?: return
-            val scanRecord = result.scanRecord ?: return
-            val manufacturerData = scanRecord.manufacturerSpecificData ?: return
-            val deviceName = scanRecord.deviceName ?: "N/A"
-
             var sensorData: SensorData? = null
 
             if (manufacturerData.size() > 0) {
@@ -277,30 +384,35 @@ class DataLoggerHandler(
                 }
             }
 
-            val entry = HistoricalDataEntry(
-                timestamp = System.currentTimeMillis(),
-                sensorData = sensorData,
-                rawData = scanRecord.bytes
-            )
-
-            val bluetoothDevice = BluetoothDeviceModel(
-                name = deviceName,
-                address = deviceAddress,
-                rssi = result.rssi.toString(),
-                deviceId = sensorData?.deviceId ?: "Unknown",
-                sensorData = sensorData,
-                scanRecordBytes = scanRecord.bytes,
-                isScannable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    (result.dataStatus and ScanResult.DATA_COMPLETE) == ScanResult.DATA_COMPLETE else false,
-                isConnectable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    result.isConnectable else false
-            )
-
             if (sensorData != null) {
                 sharedSensorDataStream.tryEmit(sensorData)
             }
 
-            pendingDeviceUpdates.add(Pair(bluetoothDevice, entry))
+            // High-throughput burst protection:
+            // Avoid creating 1,200 heavy HistoricalDataEntry and BluetoothDeviceModel objects in 2 seconds,
+            // which triggers ART Garbage Collection (GC) pauses that drop incoming HCI UART frames.
+            val now = System.currentTimeMillis()
+            if (sensorData == null || now - lastDeviceListUpdateTime > 500) {
+                lastDeviceListUpdateTime = now
+                val entry = HistoricalDataEntry(
+                    timestamp = now,
+                    sensorData = sensorData,
+                    rawData = scanRecordBytes
+                )
+
+                val bluetoothDevice = BluetoothDeviceModel(
+                    name = deviceName ?: "N/A",
+                    address = deviceAddress,
+                    rssi = rssi.toString(),
+                    deviceId = sensorData?.deviceId ?: "Unknown",
+                    sensorData = sensorData,
+                    scanRecordBytes = scanRecordBytes,
+                    isScannable = isScannable,
+                    isConnectable = isConnectable
+                )
+
+                pendingDeviceUpdates.add(Pair(bluetoothDevice, entry))
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing DataLogger scan: ${e.message}")
         }
@@ -311,7 +423,18 @@ class DataLoggerHandler(
     private fun parseDataLoggerData(data: ByteArray?, deviceAddress: String): SensorData.DataLoggerData? {
         if (data == null || data.size < 246) return null
 
+        val normDeviceAddr = deviceAddress.trim().uppercase()
+        val selectedAddr = _selectedDataLoggerAddress.value
+
+        // STRICT DEVICE ISOLATION:
+        // When a user is inside a specific DataLogger screen (selectedAddr != null),
+        // completely ignore packets from all other devices so they cannot cross-contaminate counters or UI.
+        if (!selectedAddr.isNullOrBlank() && !normDeviceAddr.equals(selectedAddr, ignoreCase = true)) {
+            return null
+        }
+
         val now = System.currentTimeMillis()
+        lastPacketReceivedTime = now
         val packetSize = 246
         var lastParsedPacket: SensorData.DataLoggerData? = null
 
@@ -320,53 +443,72 @@ class DataLoggerHandler(
 
             // Node ID is at byte 2
             val nodeId = data[offset + 2].toInt() and 0xFF
-            val selDigits = cachedSelectedIdDigits
-            val selectedAddr = _selectedDataLoggerAddress.value
 
-            val isMacMatch = !selectedAddr.isNullOrBlank() && deviceAddress.equals(selectedAddr, ignoreCase = true)
-            val isIdMatch = selDigits == null || nodeId == selDigits
-
-            if (!isMacMatch && !isIdMatch) continue
+            // Auto-stop continuous trigger as soon as first packet arrives to free up radio
+            if (!hasAutoStoppedTriggerForSession) {
+                hasAutoStoppedTriggerForSession = true
+                onFirstPacketReceived?.invoke()
+            }
             
             // Decode packet ID (Mfg0-mfg1)
             val packetId = (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
             val totalPacketsCount = (data[offset + 243].toInt() and 0xFF) or ((data[offset + 244].toInt() and 0xFF) shl 8)
+            val hwRound = data[offset + 245].toInt() and 0xFF
             val bundleId = if (packetId > 0) packetId - ((packetId - 1) % 6) else 0
 
-            val tracker = deviceBundleTracker.getOrPut(deviceAddress) { BundleTracker() }
+            val tracker = deviceBundleTracker.getOrPut(normDeviceAddr) { BundleTracker() }
+            val devStats = deviceStatsMap.getOrPut(normDeviceAddr) { DeviceSyncStats() }
 
+            var isNewPacket = false
             val currentRound = synchronized(tracker) {
-                if (tracker.currentBundleId != bundleId) {
-                    tracker.currentBundleId = bundleId
-                    tracker.currentRound = 1
+                val round = if (hwRound in 1..5) {
+                    hwRound
                 } else {
-                    if (now - tracker.lastBundleIdReceiveTime > 150) {
-                        tracker.currentRound = (tracker.currentRound + 1).coerceAtMost(3)
+                    if (tracker.currentBundleId != bundleId) {
+                        tracker.currentBundleId = bundleId
+                        tracker.currentRound = 1
+                    } else {
+                        if (now - tracker.lastBundleIdReceiveTime > 150) {
+                            tracker.currentRound = (tracker.currentRound + 1).coerceAtMost(3)
+                        }
                     }
+                    tracker.currentRound
                 }
                 tracker.lastBundleIdReceiveTime = now
-                if (tracker.firstBundleFirstPacketId == -1 && packetId > 0) {
+                if (tracker.firstBundleFirstPacketId == -1 || (packetId > 0 && packetId < tracker.firstBundleFirstPacketId)) {
                     tracker.firstBundleFirstPacketId = packetId
                 }
-                when (tracker.currentRound) {
+                when (round) {
                     1 -> tracker.r1PacketIds.set(packetId)
                     2 -> if (!tracker.r1PacketIds.get(packetId)) tracker.r2PacketIds.set(packetId)
                     3 -> if (!tracker.r1PacketIds.get(packetId) && !tracker.r2PacketIds.get(packetId)) tracker.r3PacketIds.set(packetId)
+                    else -> tracker.r3PacketIds.set(packetId)
                 }
-                tracker.currentRound
-            }
-
-            val dId = if (isMacMatch && !_selectedDataLoggerDeviceId.value.isNullOrBlank()) _selectedDataLoggerDeviceId.value!! else nodeId.toString()
-
-            val isNewPacket = synchronized(tracker) {
                 if (!tracker.receivedPacketIds.get(packetId)) {
                     tracker.receivedPacketIds.set(packetId)
-                    true
-                } else false
+                    devStats.capturedCount++
+                    isNewPacket = true
+                }
+                if (totalPacketsCount > 0) {
+                    val firstId = tracker.firstBundleFirstPacketId
+                    val calculatedExpected = if (firstId > 0 && totalPacketsCount >= firstId) {
+                        totalPacketsCount - firstId + 1
+                    } else {
+                        totalPacketsCount
+                    }
+                    devStats.expectedCount = maxOf(calculatedExpected, devStats.capturedCount)
+                }
+                round
+            }
+
+            val dId = if (!selectedAddr.isNullOrBlank() && normDeviceAddr.equals(selectedAddr, ignoreCase = true) && !_selectedDataLoggerDeviceId.value.isNullOrBlank()) {
+                _selectedDataLoggerDeviceId.value!!
+            } else {
+                _devices.value.find { it.address.equals(normDeviceAddr, ignoreCase = true) }?.deviceId ?: nodeId.toString()
             }
 
             if (isNewPacket) {
-                val baseTime = deviceDumpBaseTimes.getOrPut(deviceAddress) { now }
+                val baseTime = deviceDumpBaseTimes.getOrPut(normDeviceAddr) { now }
                 val packetTimestamp = baseTime - (totalPacketsCount - packetId) * 8000L
 
                 val singlePacket = SensorData.DataLoggerData(
@@ -378,7 +520,7 @@ class DataLoggerHandler(
                     round = currentRound,
                     nodeId = nodeId,
                     bundleId = bundleId,
-                    deviceAddress = deviceAddress
+                    deviceAddress = normDeviceAddr
                 )
 
                 pendingDataLoggerPackets.add(singlePacket)
@@ -390,32 +532,49 @@ class DataLoggerHandler(
     }
 
 
+
     // ── Public API ───────────────────────────────────────────────────────────
 
     fun clearDataLoggerHistory(deviceId: String) {
+        devicePacketStorage.remove(deviceId)
+        _recentManifestPackets.value = emptyList()
         dataLoggerPacketHistory.update { it.toMutableMap().apply { remove(deviceId) } }
-        _capturedCount.value = 0
-        _expectedCount.value = 0
-        _r1Count.value = 0
-        _r2Count.value = 0
-        _r3Count.value = 0
-        // Clean up by deviceId and also clear global base times to avoid session collision
-        deviceDumpBaseTimes.clear()
-        deviceBitSets.clear()
-        deviceUniqueIdBitSets.clear()
-        synchronized(deviceBundleTracker) {
-            deviceBundleTracker.clear()
+
+        val matchedAddr = _devices.value.find { it.deviceId == deviceId }?.address?.trim()?.uppercase()
+            ?: _selectedDataLoggerAddress.value
+
+        if (matchedAddr != null) {
+            deviceStatsMap.remove(matchedAddr)
+            deviceBundleTracker.remove(matchedAddr)
+            deviceDumpBaseTimes.remove(matchedAddr)
+            deviceBitSets.remove(matchedAddr)
+            deviceUniqueIdBitSets.remove(matchedAddr)
         }
+
+        if (_selectedDataLoggerDeviceId.value == deviceId || _selectedDataLoggerAddress.value == matchedAddr) {
+            _capturedCount.value = 0
+            _expectedCount.value = 0
+            _r1Count.value = 0
+            _r2Count.value = 0
+            _r3Count.value = 0
+        }
+        lastPacketReceivedTime = 0L
+        hasAutoStoppedTriggerForSession = false
     }
 
     fun clearAllDataLoggerHistory() {
         _devices.value = emptyList()
+        devicePacketStorage.clear()
+        _recentManifestPackets.value = emptyList()
         dataLoggerPacketHistory.value = emptyMap()
         _capturedCount.value = 0
         _expectedCount.value = 0
         _r1Count.value = 0
         _r2Count.value = 0
         _r3Count.value = 0
+        lastPacketReceivedTime = 0L
+        hasAutoStoppedTriggerForSession = false
+        deviceStatsMap.clear()
         deviceBundleTracker.clear()
         deviceBitSets.clear()
         deviceUniqueIdBitSets.clear()
@@ -426,30 +585,31 @@ class DataLoggerHandler(
     }
 
     fun uploadCapturedDataToDashboard(deviceId: String, address: String) {
-        val history = dataLoggerPacketHistory.value[deviceId] ?: return
+        val history = devicePacketStorage[deviceId]?.let { synchronized(it) { ArrayList(it) } }
+            ?: dataLoggerPacketHistory.value[deviceId]
+            ?: return
         if (history.isEmpty()) return
 
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 _isUploadingToDashboard.value = true
 
-                val allPackets = history.map { sensorData ->
-                    val points = sensorData.getParsedPoints().map {
-                        mapOf("x" to it.first, "y" to it.second, "z" to it.third)
+                history.asSequence().chunked(50).forEach { chunk ->
+                    val batch = chunk.map { sensorData ->
+                        val points = sensorData.getParsedPoints().map {
+                            mapOf("x" to it.first, "y" to it.second, "z" to it.third)
+                        }
+                        val dataMap = mapOf(
+                            "type" to "DataLogger",
+                            "appId" to appId,
+                            "packetId" to sensorData.lastPacketId,
+                            "totalPackets" to sensorData.currentPacketId,
+                            "points" to points,
+                            "deviceId" to sensorData.deviceId,
+                            "rawData" to sensorData.rawDataHex
+                        )
+                        SensorPacket(sensorData.timestamp, dataMap)
                     }
-                    val dataMap = mapOf(
-                        "type" to "DataLogger",
-                        "appId" to appId,
-                        "packetId" to sensorData.lastPacketId,
-                        "totalPackets" to sensorData.currentPacketId,
-                        "points" to points,
-                        "deviceId" to sensorData.deviceId,
-                        "rawData" to sensorData.rawDataHex
-                    )
-                    SensorPacket(sensorData.timestamp, dataMap)
-                }
-
-                allPackets.chunked(50).forEach { batch ->
                     try {
                         val renderRes = RetrofitClient.renderInstance.sendSensorDataBatch(batch)
                         val cfRes = RetrofitClient.cloudflareInstance.sendSensorDataBatch(batch)

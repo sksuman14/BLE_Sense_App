@@ -15,10 +15,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.blesense.app.repository.DataLoggerRepository
 import com.blesense.app.util.ThemeManager
+import com.blesense.app.view.game.*
 import com.blesense.app.view.screens.*
 import com.blesense.app.view.settings.ModernSettingsScreen
 import com.blesense.app.viewmodel.BluetoothScanViewModel
 import com.blesense.app.viewmodel.BluetoothScanViewModelFactory
+import com.blesense.app.viewmodel.game.BleGameViewModel
+import com.blesense.app.viewmodel.game.BleGameViewModelFactory
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -32,16 +35,16 @@ fun AppNavigation(navController: NavHostController) {
         BluetoothScanViewModelFactory(application)
     }
 
+    // Initialize BleGameViewModel
+    val gameViewModel: BleGameViewModel by activity.viewModels {
+        BleGameViewModelFactory(application)
+    }
+
     // Navigation graph
     NavHost(
         navController = navController,
-        startDestination = "splash_screen"
+        startDestination = "intermediate_screen"
     ) {
-        // Splash screen (navigates to intermediate_screen automatically)
-        composable("splash_screen") {
-            SplashScreen(navController = navController)
-        }
-
         // Intermediate screen (Main Dashboard)
         composable("intermediate_screen") {
             IntermediateScreen(
@@ -54,6 +57,14 @@ fun AppNavigation(navController: NavHostController) {
         // Home screen (Standard Sensor Hub)
         composable("home_screen") {
             MainScreen(
+                navController = navController,
+                bluetoothViewModel = bluetoothViewModel
+            )
+        }
+
+        // Step Counter Screen
+        composable("step_counter_screen") {
+            StepCounterScreen(
                 navController = navController,
                 bluetoothViewModel = bluetoothViewModel
             )
@@ -242,7 +253,8 @@ fun AppNavigation(navController: NavHostController) {
                 navArgument("deviceAddress") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val deviceAddress = backStackEntry.arguments?.getString("deviceAddress") ?: ""
+            val rawParam = backStackEntry.arguments?.getString("deviceAddress") ?: ""
+            val deviceAddress = Uri.decode(rawParam)
             RawDataViewerScreen(
                 navController = navController,
                 deviceAddress = deviceAddress,
@@ -252,6 +264,94 @@ fun AppNavigation(navController: NavHostController) {
 
         composable("bigadv_scanner_screen") {
             BigAdvScannerScreen(navController = navController, viewModel = bluetoothViewModel)
+        }
+
+        // ==================== BLE HERO GAME ROUTES ====================
+        composable("game_start_screen") {
+            StartGameScreen(
+                navController = navController
+            )
+        }
+
+        composable("game_welcome_screen") {
+            WelcomeScreen(
+                navController = navController
+            )
+        }
+
+        composable("game_device_list") {
+            GameDeviceListScreen(
+                navController = navController,
+                gameViewModel = gameViewModel
+            )
+        }
+
+        composable(
+            route = "game_play_screen/{deviceName}/{deviceAddress}",
+            arguments = listOf(
+                navArgument("deviceName") { type = NavType.StringType },
+                navArgument("deviceAddress") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val deviceName = Uri.decode(backStackEntry.arguments?.getString("deviceName") ?: "Unknown Device")
+            val deviceAddress = Uri.decode(backStackEntry.arguments?.getString("deviceAddress") ?: "")
+
+            GameplayScreen(
+                navController = navController,
+                gameViewModel = gameViewModel,
+                deviceName = deviceName,
+                deviceAddress = deviceAddress
+            )
+        }
+
+        composable("game_multiplayer") {
+            MultiplayerScreen(
+                navController = navController,
+                gameViewModel = gameViewModel
+            )
+        }
+
+        composable(
+            route = "guess_character_screen/{deviceName}/{deviceAddress}",
+            arguments = listOf(
+                navArgument("deviceName") { type = NavType.StringType },
+                navArgument("deviceAddress") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val deviceName = Uri.decode(backStackEntry.arguments?.getString("deviceName") ?: "Unknown Device")
+            val deviceAddress = Uri.decode(backStackEntry.arguments?.getString("deviceAddress") ?: "")
+
+            GuessCharacterScreen(
+                navController = navController,
+                gameViewModel = gameViewModel,
+                realHeroName = deviceName,
+                deviceAddress = deviceAddress
+            )
+        }
+
+        composable("game_bomb_device_list") {
+            BombDeviceListScreen(
+                navController = navController,
+                gameViewModel = gameViewModel
+            )
+        }
+
+        composable(
+            route = "game_bomb_defusal_screen/{deviceName}/{deviceAddress}",
+            arguments = listOf(
+                navArgument("deviceName") { type = NavType.StringType },
+                navArgument("deviceAddress") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val deviceName = Uri.decode(backStackEntry.arguments?.getString("deviceName") ?: "Unknown Device")
+            val deviceAddress = Uri.decode(backStackEntry.arguments?.getString("deviceAddress") ?: "")
+
+            BombDefusalScreen(
+                navController = navController,
+                gameViewModel = gameViewModel,
+                deviceName = deviceName,
+                deviceAddress = deviceAddress
+            )
         }
     }
 }
