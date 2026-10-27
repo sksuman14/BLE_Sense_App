@@ -256,15 +256,15 @@ graph LR
 
 ```mermaid
 flowchart TD
-    subgraph Without Recommended Settings (Unoptimized)
-        A1[Google Location Service Active] -->|Triggers Background Wi-Fi Scans| B1[Hardware Switches Antenna to Wi-Fi]
-        B1 -->|Bluetooth Interrupted for 100-300ms| C1[Telemetry Stalls & Micro-Disconnects]
+    subgraph S1 ["Without Recommended Settings (Unoptimized)"]
+        A1["Google Location Service Active"] -->|Triggers Background Wi-Fi Scans| B1["Hardware Switches Antenna to Wi-Fi"]
+        B1 -->|Bluetooth Interrupted for 100-300ms| C1["Telemetry Stalls & Micro-Disconnects"]
     end
 
-    subgraph With BLE Sense Recommended Settings (Optimized)
-        A2[Location Wi-Fi Scan Disabled] --> B2[Connected to 5 GHz Band or Cellular]
-        B2 --> C2[100% Dedicated Antenna Access for 2.4 GHz Bluetooth]
-        C2 --> D2[Continuous, Real-Time Low-Latency Telemetry Stream]
+    subgraph S2 ["With BLE Sense Recommended Settings (Optimized)"]
+        A2["Location Wi-Fi Scan Disabled"] --> B2["Connected to 5 GHz Band or Cellular"]
+        B2 --> C2["100% Dedicated Antenna Access for 2.4 GHz Bluetooth"]
+        C2 --> D2["Continuous, Real-Time Low-Latency Telemetry Stream"]
     end
 ```
 

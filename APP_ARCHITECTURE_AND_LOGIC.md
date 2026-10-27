@@ -1,24 +1,32 @@
 # BLESense Master Application Architecture & Operational Guide
 
-Welcome to the comprehensive technical documentation for the **BLESense** Android Application. This guide details the complete system architecture, data flow pipelines, Bluetooth communication protocols, Jetpack Compose UI logic, and step-by-step operational workflows.
+Welcome to the comprehensive technical documentation for the **BLESense** Android Application. This guide details the complete system architecture, data flow pipelines, Bluetooth communication protocols, Jetpack Compose UI logic, and step-by-step operational workflows for all current production features.
 
 ---
 
 ## 📐 1. System Architecture Overview
 
-The **BLESense** app is built using modern Android development standards and follows a **Monolithic Module with Internal Package-based Modularity** approach:
-- **UI Framework**: 100% Jetpack Compose with Material 3.
-- **Language**: Kotlin (JDK 11 target).
-- **Architecture Pattern**: MVVM (Model-View-ViewModel) powered by Kotlin `StateFlow` and `SharedFlow`.
-- **Modularity**: Organized into clean architectural layers (API, Repository, Model, View, ViewModel) to ensure separation of concerns within a single `:app` module.
-- **Decoupled Scanning Handlers**: Bluetooth scanning parsing logic is split into isolated component handlers implementing the `BleDeviceHandler` interface:
-  - `SensorHubHandler`: Decodes SHT40, LIS3DH, sen66, BME680, etc.
-  - `AwsSensorHandler`: Decodes weather telemetry.
-  - `DataLoggerHandler`: Implements high-speed bundle parsing, blast round detection, and gap filling.
-- **Bluetooth Stack**: 
-    - **Nordic BLE**: Using `no.nordicsemi.android.kotlin.ble` for high-performance scanning and advertising.
-    - **Classic Bluetooth**: RFCOMM Socket support for real-time hardware control.
-- **Navigation**: Jetpack Compose Navigation (`NavHost` & `NavController`).
+The **BLESense** app is engineered using modern Android development best practices and follows a **Monolithic Single-Module Clean Architecture with Internal Package-Based Modularity**:
+
+- **UI Framework**: 100% Jetpack Compose with Material 3, supporting dynamic dark and light mode themes.
+- **Language**: Kotlin (Target: JDK 11 / Android 14+ API 34).
+- **Architecture Pattern**: MVVM (Model-View-ViewModel) with unidirectional data flow powered by Kotlin Coroutines, `StateFlow`, `SharedFlow`, and non-blocking channels.
+- **Decoupled Scanning Engine**: All Bluetooth advertising parsing is strictly partitioned into isolated handlers implementing the `BleDeviceHandler` interface:
+  - `SensorHubHandler`: Decodes SHT40, Sen66, BME680, LIS3DH, and multi-sensor environmental telemetry.
+  - `AwsSensorHandler`: Decodes Autonomous Weather Station telemetry with live gauge analytics.
+  - `DataLoggerHandler`: Implements high-throughput bundle-based triple-blast packet parsing, gap filling, and BitSet tracking.
+  - `StepCounterHandler`: Isolated LIS3DH pedometer engine featuring dynamic baseline gravity removal and hysteresis peak detection.
+  - `RawTestDeviceHandler`: Inspects and exposes raw hexadecimal manufacturer-specific advertising payloads.
+- **Dual-Mode Robot Controller**:
+  - **Classic Bluetooth (SPP)**: RFCOMM socket communication for legacy modules (HC-05, HC-06).
+  - **Bluetooth Low Energy (BLE)**: Nordic UART Service (NUS) with high-speed GATT write pipelines.
+  - **Live Over-The-Air Discovery**: Strictly isolates live physical RF inquiries (`ACTION_FOUND` & `onScanResult`), rejecting offline bonded device caches.
+  - **Mutex Concurrency**: ReentrantLock-based write mutex to eliminate command collisions and buffer saturation.
+  - **Safety Stop Protocol**: Instant zero-velocity stop packet dispatch upon back navigation, app backgrounding, or disconnection.
+- **BLE Interactive Game Suite**:
+  - Proximity-based Marvel Avengers-themed games (Single Player, Guess Character, Bomb Defusal, Multiplayer).
+  - Powered by `BleGameViewModel` and `BleGameRepository`.
+- **Navigation**: Jetpack Compose Navigation (`NavHost` & `NavHostController`) with strict typed back-stack handling and insets awareness.
 
 ```
                               ┌───────────────────────────────────┐
@@ -29,14 +37,22 @@ The **BLESense** app is built using modern Android development standards and fol
                                        │   NavHost UI    │
                                        └────────┬────────┘
                                                 │
-        ┌───────────────────┬────────────────────┼────────────────────┬───────────────────┐
-        ▼                   ▼                    ▼                    ▼                   ▼
- ┌──────────────┐   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐    ┌───────────────┐
- │ Intermediate │   │ AWS Scanner  │     │ Home Screen  │     │ Data Logger  │    │ Robot Control │
- │ (Dashboard)  │   │ (Environmental)│   │ (Sensor Hub) │     │ (Logging)    │    │ (HUD Drive)   │
- └──────────────┘   └──────────────┘     └──────────────┘     └──────────────┘    └───────────────┘
-        │                   │                    │                    │                   │
-        └───────────────────┴────────────────────┼────────────────────┴───────────────────┘
+        ┌───────────────┬───────────────────────┼───────────────────────┬───────────────┐
+        ▼               ▼                       ▼                       ▼               ▼
+ ┌──────────────┐┌──────────────┐       ┌──────────────┐        ┌──────────────┐┌──────────────┐
+ │ Intermediate ││ AWS Scanner  │       │ Home Screen  │        │ Step Counter ││ Robot Control│
+ │ (Dashboard)  ││ (Weather)    │       │ (Sensor Hub) │        │ (LIS3DH Hub) ││ (HUD Drive)  │
+ └──────────────┘└──────────────┘       └──────────────┘        └──────────────┘└──────────────┘
+        │               │                       │                       │               │
+        │       ┌───────┴───────────────────────┴───────────────────────┴───────┐       │
+        │       │                                                               │       │
+        ▼       ▼                                                               ▼       ▼
+ ┌──────────────┐┌──────────────┐                                       ┌──────────────┐┌──────────────┐
+ │ Data Logger  ││ Game Suite   │                                       │ BigAdv Scan  ││ Settings     │
+ │ (Acquisition)││ (Marvel BLE) │                                       │ (BLE 5.0)    ││ (RF & Power) │
+ └──────────────┘└──────────────┘                                       └──────────────┘└──────────────┘
+        │               │                                                       │       │
+        └───────────────┴───────────────────────┬───────────────────────────────┴───────┘
                                                 │
                                      ┌──────────┴──────────┐
                                      │ BluetoothViewModel  │
@@ -45,139 +61,202 @@ The **BLESense** app is built using modern Android development standards and fol
                  ┌──────────────────────────────┼──────────────────────────────┐
                  ▼                              ▼                              ▼
       ┌────────────────────┐         ┌────────────────────┐         ┌────────────────────┐
-      │  BLE Scan Router   │         │  Targeted Trigger  │         │ RFCOMM Socket Hub  │
-      │                    │         │  (Advertise Mode)  │         │ (Robot Control)    │
+      │  BLE Scan Router   │         │  Targeted Trigger  │         │ Dual-Mode Robot Hub│
+      │ (Channel Pipeline) │         │  (Advertise Mode)  │         │ (RFCOMM & NUS GATT)│
       └──────────┬─────────┘         └────────────────────┘         └────────────────────┘
                  │
-      ┌──────────┼──────────────────────────────┐
-      ▼          ▼                              ▼
-┌───────────┐┌───────────┐              ┌──────────────┐
-│ SensorHub ││ AWS       │              │  DataLogger  │
-│ Handler   ││ Handler   │              │  Handler     │
-└───────────┘└───────────┘              └──────────────┘
+      ┌──────────┼──────────────────────┬──────────────────────┬──────────────────────┐
+      ▼          ▼                      ▼                      ▼                      ▼
+┌───────────┐┌───────────┐        ┌───────────┐          ┌───────────┐          ┌───────────┐
+│ SensorHub ││ AWS       │        │DataLogger │          │StepCounter│          │  RawTest  │
+│ Handler   ││ Handler   │        │Handler    │          │Handler    │          │  Handler  │
+└───────────┘└───────────┘        └───────────┘          └───────────┘          └───────────┘
 ```
 
 ---
 
 ## 🏗️ 2. App Modular Architecture (Internal Layers)
 
-The project adheres to **Clean Architecture** principles by segregating code into logical layers within the package structure. The following diagram illustrates the unidirectional data flow and dependency hierarchy:
-
 ```mermaid
 graph TD
-    subgraph UI_Layer [Presentation Layer]
-        View[Jetpack Compose UI / Components]
-        ViewModel[UI State Management / StateFlow]
+    subgraph UI_Layer ["Presentation Layer"]
+        View["Jetpack Compose UI & Screens"]
+        ViewModel["UI State Management / StateFlow"]
     end
 
-    subgraph Domain_Layer [Domain & Data Layer]
-        Repository[Centralized Data Repository]
-        Model[Sealed Class Data Models]
-        Handlers[Modular Device Handlers]
+    subgraph Domain_Layer ["Domain & Processing Layer"]
+        Repository["Central Data Repositories"]
+        Model["Polymorphic Sensor Models"]
+        Handlers["Modular Scan Handlers"]
     end
 
-    subgraph Infra_Layer [Network & Connectivity Layer]
-        API[Retrofit / Cloud Sync]
-        BLE[Bluetooth Engine / Nordic BLE]
-        Util[Parsing / Deduplication Utilities]
+    subgraph Infra_Layer ["Connectivity & Infrastructure Layer"]
+        BLE["Nordic BLE & Classic Bluetooth RFCOMM"]
+        GATT["Nordic UART Service (NUS) BLE GATT"]
+        API["Dual-Cloud Sync (Render & Cloudflare)"]
+        Util["In-Memory Deduplication & Circular Buffers"]
     end
 
-    %% Dependency Flow
-    View --- ViewModel
+    %% Dependency & Data Flow
+    View --> ViewModel
     ViewModel --> Handlers
     Handlers --> Model
     Handlers --> Repository
     Repository --> API
     BLE --> Handlers
+    GATT --> Handlers
     API --> Util
     BLE --> Util
 ```
 
 ### 1. Presentation Layer (`view`, `viewmodel`)
-- **View**: Jetpack Compose functions defining the UI. Organized into `screens` (full pages) and `components` (reusable widgets).
-- **ViewModel**: Manages UI state using `StateFlow`. Handles user interactions and orchestrates data flow from repositories.
-- **Stats Flows**: Rather than calculating counts and lists on the main Compose thread, statistics like `capturedCount`, `expectedCount`, and retry round summaries are calculated in the background inside handlers and exposed as StateFlows.
+- **View**: Declarative composable screens with full edge-to-edge support, custom Canvas rendering, HUD dials, and animated status meters.
+- **ViewModel**: Preserves state across configuration changes, manages Coroutine scopes (`viewModelScope`), and exposes read-only `StateFlow` streams.
+- **Theme Support**: Centralized in `BleSenseColors` and `ThemeManager` with system-aware automatic palette switching.
 
-### 2. Domain/Data Layer (`model`, `repository`, `viewmodel/handler`)
-- **Model**: Contains the "Source of Truth" data structures. Uses `Sealed Classes` (e.g., `SensorData`) to represent polymorphic sensor types.
-- **BleDeviceHandler**: An interface defining a parser and handler. Decoupled handlers prevent modifications in one device type (e.g., DataLogger) from impacting others.
+### 2. Domain & Data Layer (`model`, `repository`, `viewmodel/handler`)
+- **SensorData**: Sealed class hierarchy providing type safety for `AWSData`, `SHT40`, `Sen66`, `LIS3DH`, `DataLoggerData`, and `StepCounterData`.
+- **BleDeviceHandler**: Pluggable interface (`canHandle` & `handle`) ensuring handlers remain completely decoupled and testable.
+
+### 3. Infrastructure Layer (`util`, network, Bluetooth)
+- Hardware abstractions for Classic Bluetooth RFCOMM serial streams, BLE LE Scanners, and NUS GATT client connections.
 
 ---
 
 ## 📁 3. Key File Directory & Responsibilities
 
-| File Path | Description & Core Responsibility |
+| File Path | Core Responsibility |
 | :--- | :--- |
-| `MainActivity.kt` | Entry point. Sets up Splash Screen and initializes the `AppNavigation` container. |
-| `Navigation.kt` | Configures `NavHost` routes (`aws_scanner`, `home_screen`, `data_logger_control`, `robot_screen`). |
-| `BluetoothScanViewModel.kt` | Central engine. Manages BLE scanning, routing, Targeted Trigger Advertisements, and delegates parsing to handlers via a high-throughput parallel channel pipeline. |
-| `BleDeviceHandler.kt` | Interface defining capability matching (`canHandle`) and processing (`handle`) for handlers. |
-| `DataLoggerHandler.kt` | Manages DataLogger state, tracks blast rounds, performs gap filling, and exposes background-computed statistics. |
-| `SensorHubHandler.kt` | Parser implementation for Sensor Hub peripherals. |
-| `AwsSensorHandler.kt` | Decodes Autonomous Weather Station telemetry. |
-| `SensorData.kt` | Sealed class architecture for all sensor types: `AWSData`, `SHT40`, `Sen66`, `LIS3DH`, `DataLoggerData`. |
-| `DataLoggerScreen.kt` | High-speed data acquisition screen. Binds directly to state variables computed by `DataLoggerHandler`. |
-| `RobotControlCompose.kt` | Futuristic Landscape HUD. Sends ASCII commands over Classic Bluetooth (RFCOMM) serial stream. |
-| `RetrofitClient.kt` | Dual-cloud integration. Parallel uploads to **Render** and **Cloudflare** for remote telemetry monitoring. |
+| `MainActivity.kt` | Application entry point; initializes edge-to-edge insets, splash screen, and permissions. |
+| `Navigation.kt` | Master `NavHost` configuring all 15+ screen routes with typed argument passing. |
+| `BluetoothScanViewModel.kt` | Central scan router; coordinates scanning channels, targeted advertising triggers, and delegates to handlers. |
+| `StepCounterScreen.kt` | Real-time pedometer screen; renders 3D progress ring, cadence/distance/calories cards, and 3-axis accelerometer telemetry. |
+| `StepCounterHandler.kt` | Isolated handler for LIS3DH Step Counter devices; processes dynamic baseline gravity and hysteresis peak detection. |
+| `StepCounter.kt` | Pocket-optimized algorithmic step engine; calculates cadence, motion amplitude, and debounced step events. |
+| `RobotControlCompose.kt` | Dual-mode Robot Car HUD; features 3D steering dials, live-only RF inquiry scanning, and thread-safe safety stops. |
+| `DataLoggerScreen.kt` | High-speed data acquisition screen; monitors triple-blast bundle progress, gap filling, and BitSet tracking. |
+| `DataLoggerHandler.kt` | Decodes high-speed accelerometer burst bundles and detects blast retry rounds. |
+| `SensorHubHandler.kt` | Multi-sensor environmental decoder for SHT40, Sen66, BME680, and LIS3DH nodes. |
+| `AwsSensorHandler.kt` | Autonomous Weather Station telemetry decoder; exposes live temperature, humidity, wind, and rain metrics. |
+| `AWSScannerScreen.kt` | Real-time weather station dashboard with animated gauge needles and cloud sync controls. |
+| `BleGameViewModel.kt` | State manager for proximity-based Marvel Avengers BLE games. |
+| `GameplayScreen.kt` | Interactive single-player BLE game interface displaying hero animations, proximity meters, and point scores. |
+| `BombDefusalScreen.kt` | Timed proximity bomb defusal screen using real-time RSSI signal strength thresholds. |
+| `SettingsPage.kt` | Comprehensive configuration hub; provides Wi-Fi 2.4 GHz coexistence settings, battery optimization guidance, and theme toggles. |
+| `RawDataViewerScreen.kt` | Live hexadecimal packet viewer for deep RF diagnostics and manufacturer data inspection. |
+| `BleSenseColors.kt` | Design tokens for high-contrast light and obsidian dark modes. |
 
 ---
 
-## 📡 4. Bluetooth Communication & Hardware Logic
+## 📡 4. Bluetooth Communication & Hardware Protocols
 
 ### A. DataLogger Bundle-Based Triple-Blast Protocol
 
-The firmware transfers records in bundles using chained extended advertisements to minimize packet loss:
+The DataLogger firmware transmits high-frequency accelerometer logs using extended BLE advertising bundles:
 1. **Packet Structure (246 bytes)**:
    - `Mfg[0-1]`: Unique Packet ID (16-bit little-endian)
    - `Mfg[2]`: Node ID (8-bit)
-   - `Mfg[3-242]`: Accelerometer payload (80 x,y,z points)
+   - `Mfg[3-242]`: Accelerometer payload (80 $X, Y, Z$ data points)
    - `Mfg[243-244]`: Total packet count (16-bit little-endian)
-   - `Mfg[245]`: Extra padding/round metadata
-2. **Bundle Size**: 6 packets per bundle. The starting packet ID of a bundle defines the `bundleId`:
+   - `Mfg[245]`: Extra padding and blast metadata
+2. **Bundle Sizing**: 6 packets per bundle. Starting packet ID determines `bundleId`:
    $$\text{bundleId} = \text{packetId} - ((\text{packetId} - 1) \pmod 6)$$
-3. **Triple Blast Spacing**:
-   - Each bundle is advertised sequentially 3 times (blast retry rounds).
-   - Same-bundle retry blasts occur within 100ms; new bundle transmissions start after 200ms.
-4. **Blast Round Detection**:
-   - The handler tracks `currentBundleId`. If the `bundleId` is unchanged and arrived after a 150ms gap from the last packet in this bundle, it triggers a round increment (categorized as Round 2 or Round 3). Packets arriving within 150ms of each other are considered part of the same blast.
-5. **Gap Filling & De-duplication**:
-   - Packets are recorded using a global `BitSet`.
-   - Retry rounds (Round 2 & 3) only record packet IDs that were missed in earlier rounds to prevent double-counting.
-   - Captured Count is computed directly as the cardinality of unique packet IDs received:
-     $$\text{Captured Count} = \text{Round 1} + \text{Round 2} + \text{Round 3}$$
-   - Expected Count is calculated from the first received packet ID:
-     $$\text{Expected Count} = \text{totalPackets} - \text{firstBundleId} + 1$$
+3. **Triple Blast Retry Logic**:
+   - Each bundle is advertised sequentially up to 3 times to guarantee delivery over lossy RF channels.
+   - Blast round increments are detected when identical `bundleId` arrives with $\ge 150\text{ ms}$ interval.
+4. **BitSet Gap Filling**:
+   - Received packet IDs are recorded in an in-memory `BitSet`.
+   - Repeated packets in Rounds 2 & 3 are rejected to avoid duplicate counting.
 
 ---
 
-## 📊 5. Data Processing Pipeline
+### B. Step Counter (LIS3DH Pedometer Algorithm)
 
-1. **Reception**: `BluetoothLeScanner` captures raw bytes via `ScanCallback`.
-2. **Parsing**: `BluetoothScanViewModel` decodes bytes based on Manufacturer ID `0x0059`.
-3. **Model Mapping**: Raw data is mapped into `SensorData` child classes.
-4. **UI Update**: `StateFlow` triggers recomposition in Jetpack Compose screens.
-5. **Cloud Sync**: `sendToDashboard` function uploads packets to remote APIs asynchronously.
-
----
-
-## 🚀 6. Development & Deployment
-
-### Build Specifications
-- **Compile SDK**: 35
-- **Min SDK**: 29
-- **Build Features**: Compose enabled, Proguard/R8 optimization active for Release.
-
-### Key Gradle Dependencies
-- `androidx.compose.material3`: Modern UI components.
-- `no.nordicsemi.android.kotlin.ble`: Bluetooth core.
-- `io.coil-kt:coil-compose`: Image loading.
-- `androidx.navigation:navigation-compose`: App routing.
+The Step Counter engine processes raw accelerometer broadcasts from LIS3DH sensor nodes:
+1. **3D Acceleration Magnitude**:
+   $$\text{Magnitude} = \sqrt{X^2 + Y^2 + Z^2}$$
+   Ensures complete orientation independence whether the sensor is upright, sideways, or in a pocket.
+2. **Dynamic Gravity Baseline Removal**:
+   - Applies an adaptive low-pass filter to isolate Earth's static $1g$ gravity component:
+     $$\text{Baseline}_{t} = \alpha \cdot \text{Baseline}_{t-1} + (1 - \alpha) \cdot \text{Magnitude}_t$$
+   - Dynamic motion component: $\text{Motion} = \lvert \text{Magnitude} - \text{Baseline} \rvert$.
+3. **Hysteresis Zero-Crossing Peak Detector**:
+   - Confirms a step event when motion crosses the adaptive peak threshold ($\ge 0.45\text{ m/s}^2$) and returns to valley baseline ($\le 0.10\text{ m/s}^2$) or drops by $\ge 60\%$.
+   - **Debounce Window**: $260\text{ ms}$ refractory period limits maximum cadence to $\sim 230\text{ SPM}$, rejecting harmonic foot-strike noise.
+4. **Real-Time Telemetry**:
+   - Calculates Cadence (Steps/min), Estimated Distance ($\approx 0.75\text{ m/step}$), and Energy Expenditure ($\approx 0.04\text{ kcal/step}$).
 
 ---
 
-## 🛡️ 7. UI/UX Consistency
-- **Themes**: Managed via `ThemeManager` (Light/Dark mode support).
-- **Visuals**: Heavy use of custom `Canvas` drawing for weather gauges and HUD elements.
-- **Orientation**: Robot Control is strictly locked to `sensorLandscape` via `AndroidManifest.xml`.
+### C. Dual-Mode Robot Car Control (Classic SPP + BLE NUS)
 
-*Document refined for BLESense Android Architecture v1.2*
+1. **Dual Connectivity**:
+   - **Classic SPP**: Connects via `BluetoothSocket` using standard Serial Port Profile UUID (`00001101-0000-1000-8000-00805F9B34FB`).
+   - **BLE NUS**: Connects via `BluetoothGatt` using Nordic UART Service (`6E400001-...`):
+     - **RX Characteristic**: `6E400002-...` (Write without response)
+     - **TX Characteristic**: `6E400003-...` (Notifications)
+2. **Strict Live Over-The-Air Discovery Filter**:
+   - Devices are **only** displayed in the connection dialog if active radio inquiry packets (`BluetoothDevice.ACTION_FOUND`) or live BLE advertising packets (`onScanResult`) are received in the current session.
+   - Cached local paired devices (`bondedDevices`) and disk cache broadcasts (`ACTION_UUID`) are rejected so offline devices never appear.
+3. **Mutex-Locked Concurrency & Safety Stops**:
+   - `ReentrantLock` write mutex prevents concurrent transmission collisions.
+   - Non-blocking conflated dispatch ensures the most recent command is always transmitted without buffer bloat.
+   - **Immediate Stop**: Sends `S` (Movement Stop) and `C` (Steering Center) immediately when the control dial is released, the screen is dismissed, or connection drops.
+
+---
+
+### D. BLE Interactive Game Suite
+
+1. **Proximity Signal RSSI Mapping**:
+   - Converts real-time BLE RSSI values into distance estimates:
+     $$d = 10^{\frac{\text{Measured Power} - \text{RSSI}}{10 \cdot n}}$$
+2. **Game Mechanics**:
+   - **Character Guessing**: Scans nearby BLE device IDs and challenges the user to match physical beacons with Marvel hero profiles.
+   - **Bomb Defusal**: Requires players to maintain close physical proximity (strong RSSI threshold $\ge -60\text{ dBm}$) while solving timed puzzle sequences.
+   - **Multiplayer**: Synchronizes scores and target beacon discoveries across multiple players.
+
+---
+
+## ⚡ 5. Physical Hardware & RF Coexistence Testing
+
+### 2.4 GHz Antenna Isolation Flow
+
+```mermaid
+flowchart TD
+    subgraph S1 ["Without Recommended Settings (Unoptimized)"]
+        A1["Google Location Service Active"] -->|Triggers Background Wi-Fi Scans| B1["Hardware Switches Antenna to Wi-Fi"]
+        B1 -->|Bluetooth Interrupted for 100-300ms| C1["Telemetry Stalls & Micro-Disconnects"]
+    end
+
+    subgraph S2 ["With BLE Sense Recommended Settings (Optimized)"]
+        A2["Location Wi-Fi Scan Disabled"] --> B2["Connected to 5 GHz Band or Cellular"]
+        B2 --> C2["100% Dedicated Antenna Access for 2.4 GHz Bluetooth"]
+        C2 --> D2["Continuous, Real-Time Low-Latency Telemetry Stream"]
+    end
+```
+
+### Samsung One UI Battery Optimization Profile
+
+| Battery Configuration | Background Policy | Radio Connection Result | Operational Recommendation |
+| :--- | :--- | :--- | :--- |
+| **❌ Sleeping / Deep Sleep** | OS terminates process after 60 min | Connection drops when phone screen turns off | 🚫 Prohibited for live logging |
+| **⚠️ Optimized (Default)** | OS throttles Bluetooth polling intervals | Periodic packet pauses during idle states | ⚠️ Causes telemetry jitter |
+| **✅ Unrestricted (Recommended)**| Continuous background execution | **100% Uninterrupted Live Telemetry Stream** | 🟢 Required for enterprise testing |
+
+---
+
+## 🚀 6. Build & Deployment Specifications
+
+- **Compile SDK**: `35` (Android 15)
+- **Target SDK**: `34` (Android 14)
+- **Min SDK**: `29` (Android 10)
+- **Key Dependencies**:
+  - `androidx.compose.material3`: Material 3 Compose system.
+  - `no.nordicsemi.android.kotlin.ble`: High-performance Nordic BLE scanner & GATT library.
+  - `io.coil-kt:coil-compose` & `coil-gif`: Animated GIF and image rendering.
+  - `androidx.navigation:navigation-compose`: Type-safe navigation.
+- **ProGuard / R8**: Full optimization enabled with preserved serialization models for release builds.
+
+---
+
+*Document updated for BLESense Android Master Architecture v2.0*
