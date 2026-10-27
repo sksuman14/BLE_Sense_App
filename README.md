@@ -46,7 +46,7 @@ The **BLESense** app is built using modern Android development standards and fol
                  ▼                              ▼                              ▼
       ┌────────────────────┐         ┌────────────────────┐         ┌────────────────────┐
       │  BLE Scan Router   │         │  Targeted Trigger  │         │ RFCOMM Socket Hub  │
-      │  (Direct Bypass)   │         │  (Advertise Mode)  │         │ (Robot Control)    │
+      │                    │         │  (Advertise Mode)  │         │ (Robot Control)    │
       └──────────┬─────────┘         └────────────────────┘         └────────────────────┘
                  │
       ┌──────────┼──────────────────────────────┐
@@ -110,7 +110,7 @@ graph TD
 | :--- | :--- |
 | `MainActivity.kt` | Entry point. Sets up Splash Screen and initializes the `AppNavigation` container. |
 | `Navigation.kt` | Configures `NavHost` routes (`aws_scanner`, `home_screen`, `data_logger_control`, `robot_screen`). |
-| `BluetoothScanViewModel.kt` | Central engine. Manages BLE scanning, routing, Targeted Trigger Advertisements, and delegates parsing to handlers. Features a direct synchronous route bypass for target DataLogger MAC addresses to prevent queue delays. |
+| `BluetoothScanViewModel.kt` | Central engine. Manages BLE scanning, routing, Targeted Trigger Advertisements, and delegates parsing to handlers via a high-throughput parallel channel pipeline. |
 | `BleDeviceHandler.kt` | Interface defining capability matching (`canHandle`) and processing (`handle`) for handlers. |
 | `DataLoggerHandler.kt` | Manages DataLogger state, tracks blast rounds, performs gap filling, and exposes background-computed statistics. |
 | `SensorHubHandler.kt` | Parser implementation for Sensor Hub peripherals. |
@@ -139,7 +139,7 @@ The firmware transfers records in bundles using chained extended advertisements 
    - Each bundle is advertised sequentially 3 times (blast retry rounds).
    - Same-bundle retry blasts occur within 100ms; new bundle transmissions start after 200ms.
 4. **Blast Round Detection**:
-   - The handler tracks `currentBundleId`. If the `bundleId` is unchanged and arrived within 150ms of the last packet in this bundle, it is categorized as a retry round (Round 2 or Round 3).
+   - The handler tracks `currentBundleId`. If the `bundleId` is unchanged and arrived after a 150ms gap from the last packet in this bundle, it triggers a round increment (categorized as Round 2 or Round 3). Packets arriving within 150ms of each other are considered part of the same blast.
 5. **Gap Filling & De-duplication**:
    - Packets are recorded using a global `BitSet`.
    - Retry rounds (Round 2 & 3) only record packet IDs that were missed in earlier rounds to prevent double-counting.
@@ -147,12 +147,6 @@ The firmware transfers records in bundles using chained extended advertisements 
      $$\text{Captured Count} = \text{Round 1} + \text{Round 2} + \text{Round 3}$$
    - Expected Count is calculated from the first received packet ID:
      $$\text{Expected Count} = \text{totalPackets} - \text{firstBundleId} + 1$$
-
-### B. High-Speed Synchronous Routing Bypass
-To prevent Android OS scanning pauses and thread queue choke-up:
-- The Bluetooth scan callback synchronously intercepts advertisements matching the selected DataLogger target MAC address.
-- These target packets are processed immediately, skipping the Coroutine queue to ensure 100% capture rate.
-- The UI binds to pre-aggregated background stats variables to avoid rendering stutters.
 
 ---
 
@@ -186,4 +180,4 @@ To prevent Android OS scanning pauses and thread queue choke-up:
 - **Visuals**: Heavy use of custom `Canvas` drawing for weather gauges and HUD elements.
 - **Orientation**: Robot Control is strictly locked to `sensorLandscape` via `AndroidManifest.xml`.
 
-*Document refined for BLESense Android Architecture v1.1*
+*Document refined for BLESense Android Architecture v1.2*
