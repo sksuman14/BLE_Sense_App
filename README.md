@@ -247,9 +247,11 @@ flowchart TD
 
 ## 🚀 6. Build & Deployment Specifications
 
-- **Compile SDK**: `35` (Android 15)
-- **Target SDK**: `34` (Android 14)
+- **Compile SDK**: `36` (Android 16 / Extension 15)
+- **Target SDK**: `36` (Android 16)
 - **Min SDK**: `29` (Android 10)
+- **Version Code**: `25`
+- **Version Name**: `1.2.4`
 - **Key Dependencies**:
   - `androidx.compose.material3`: Material 3 Compose system.
   - `no.nordicsemi.android.kotlin.ble`: High-performance Nordic BLE scanner & GATT library.
