@@ -79,33 +79,11 @@
   <component name="ChangeListManager">
     <list default="true" id="2a8d1c62-c65c-4014-bffc-df98cbe8e759" name="Changes" comment="new changes">
       <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/app/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/model/SensorData.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/model/SensorData.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/ui/theme/BleSenseColors.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/ui/theme/BleSenseColors.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/navigation/Navigation.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/navigation/Navigation.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AWSAdvertisingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AWSAdvertisingScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AWSScannerScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AWSScannerScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AdvertisingScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/AdvertisingScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/BigAdvScannerScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/BigAdvScannerScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/DataLoggerListScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/DataLoggerListScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/DataLoggerScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/DataLoggerScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/Graph.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/Graph.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/HomeScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/HomeScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/IntermediateScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/IntermediateScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RawDataViewerScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RawDataViewerScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RobotControlCompose.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/RobotControlCompose.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/ScanHistoryScreen.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/screens/ScanHistoryScreen.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/settings/SettingsPage.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/view/settings/SettingsPage.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/BluetoothScanViewModel.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/BluetoothScanViewModel.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/AwsSensorHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/AwsSensorHandler.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/BleDeviceHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/BleDeviceHandler.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/APP_ARCHITECTURE_AND_LOGIC.md" beforeDir="false" afterPath="$PROJECT_DIR$/APP_ARCHITECTURE_AND_LOGIC.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/api/BackendService.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/api/BackendService.kt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/DataLoggerHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/DataLoggerHandler.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/ScanResultUtils.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/ScanResultUtils.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/SensorHubHandler.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/com/blesense.app/viewmodel/handler/SensorHubHandler.kt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -208,52 +186,52 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "Android App.MainActivity (1).executor": "Run",
-    "Android App.MainActivity.executor": "Run",
-    "Android App.app.executor": "Run",
-    "ApkExportedModule": "BLE_Sense_-_Jetpack_Compose.app",
-    "BundleExportedModule": "BLE_Sense_-_Jetpack_Compose.app",
-    "Compose Preview.PreviewRobotControlScreen.executor": "Run",
-    "ExportApk.ApkPathForBLE_-_Jetpack_Compose.app": "C:\\Users\\DELL\\AndroidStudioProjects\\BLEJetpackCompose\\app",
-    "ExportApk.ApkPathForBLE_Sense_-_Jetpack_Compose.app": "C:\\Users\\DELL\\StudioProjects\\BLE_Sense_App09\\app\\release",
-    "ExportBundle.BundlePathForBLE_Sense_-_Jetpack_Compose.app": "C:\\Users\\1239\\Desktop\\aap key\\release",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.cidr.known.project.marker": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.readMode.enableVisualFormatting": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ScreenshotViewer.SavePath": "C:/Users/hp/Downloads",
-    "ShowUsagesActions.previewPropertyKey": "true",
-    "cf.first.check.clang-format": "false",
-    "cidr.known.project.marker": "true",
-    "com.google.services.firebase.aqiPopupShown": "true",
-    "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "kotlin-language-version-configured": "true",
-    "last_directory_selection": "C:/Users/hp/StudioProjects/BLE_Sense_App09/app/src/main/java",
-    "last_opened_file_path": "C:/Users/DELL/StudioProjects/BLE_Sense_App09",
-    "project.structure.last.edited": "Modules",
-    "project.structure.proportion": "0.17",
-    "project.structure.side.proportion": "0.2",
-    "run.code.analysis.last.selected.profile": "pProject Default",
-    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
-    "show.migrate.to.gradle.popup": "false"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;Android App.MainActivity (1).executor&quot;: &quot;Run&quot;,
+    &quot;Android App.MainActivity.executor&quot;: &quot;Run&quot;,
+    &quot;Android App.app.executor&quot;: &quot;Run&quot;,
+    &quot;ApkExportedModule&quot;: &quot;BLE_Sense_-_Jetpack_Compose.app&quot;,
+    &quot;BundleExportedModule&quot;: &quot;BLE_Sense_-_Jetpack_Compose.app&quot;,
+    &quot;Compose Preview.PreviewRobotControlScreen.executor&quot;: &quot;Run&quot;,
+    &quot;ExportApk.ApkPathForBLE_-_Jetpack_Compose.app&quot;: &quot;C:\\Users\\DELL\\AndroidStudioProjects\\BLEJetpackCompose\\app&quot;,
+    &quot;ExportApk.ApkPathForBLE_Sense_-_Jetpack_Compose.app&quot;: &quot;C:\\Users\\DELL\\StudioProjects\\BLE_Sense_App09\\app\\release&quot;,
+    &quot;ExportBundle.BundlePathForBLE_Sense_-_Jetpack_Compose.app&quot;: &quot;C:\\Users\\1239\\Desktop\\aap key\\release&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ScreenshotViewer.SavePath&quot;: &quot;C:/Users/hp/Downloads&quot;,
+    &quot;ShowUsagesActions.previewPropertyKey&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;com.google.services.firebase.aqiPopupShown&quot;: &quot;true&quot;,
+    &quot;dart.analysis.tool.window.visible&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_directory_selection&quot;: &quot;C:/Users/hp/StudioProjects/BLE_Sense_App09/app/src/main/java&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/DELL/StudioProjects/BLE_Sense_App09&quot;,
+    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
+    &quot;project.structure.proportion&quot;: &quot;0.17&quot;,
+    &quot;project.structure.side.proportion&quot;: &quot;0.2&quot;,
+    &quot;run.code.analysis.last.selected.profile&quot;: &quot;pProject Default&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;project.propVCSSupport.DirectoryMappings&quot;,
+    &quot;show.migrate.to.gradle.popup&quot;: &quot;false&quot;
   },
-  "keyToStringList": {
-    "ExportApk.BuildVariants": [
-      "release"
+  &quot;keyToStringList&quot;: {
+    &quot;ExportApk.BuildVariants&quot;: [
+      &quot;release&quot;
     ],
-    "com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File": [
-      "PLAIN_TEXT"
+    &quot;com.intellij.ide.scratch.ScratchImplUtil$2/New Scratch File&quot;: [
+      &quot;PLAIN_TEXT&quot;
     ]
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\hp\StudioProjects\BLE_Sense_App09\app\src\main\res\drawable" />

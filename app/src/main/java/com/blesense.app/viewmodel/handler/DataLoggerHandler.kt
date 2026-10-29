@@ -594,33 +594,45 @@ class DataLoggerHandler(
             try {
                 _isUploadingToDashboard.value = true
 
-                history.asSequence().chunked(50).forEach { chunk ->
+                history.asSequence().chunked(100).forEachIndexed { index, chunk ->
                     val batch = chunk.map { sensorData ->
-                        val points = sensorData.getParsedPoints().map {
-                            mapOf("x" to it.first, "y" to it.second, "z" to it.third)
-                        }
                         val dataMap = mapOf(
                             "type" to "DataLogger",
                             "appId" to appId,
                             "packetId" to sensorData.lastPacketId,
                             "totalPackets" to sensorData.currentPacketId,
-                            "points" to points,
                             "deviceId" to sensorData.deviceId,
                             "rawData" to sensorData.rawDataHex
                         )
                         SensorPacket(sensorData.timestamp, dataMap)
                     }
-                    try {
-                        val renderRes = RetrofitClient.renderInstance.sendSensorDataBatch(batch)
-                        val cfRes = RetrofitClient.cloudflareInstance.sendSensorDataBatch(batch)
-                        if (!renderRes.isSuccessful) {
-                            Log.e(TAG, "Render upload failed HTTP ${renderRes.code()}: ${renderRes.errorBody()?.string()}")
+
+                    // Non-blocking Cloudflare upload in background so tunnel timeouts don't block Render
+                    launch {
+                        try {
+                            RetrofitClient.cloudflareInstance.sendSensorDataBatch(batch)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Cloudflare upload chunk $index error (ignored): ${e.message}")
                         }
-                        if (!cfRes.isSuccessful) {
-                            Log.e(TAG, "Cloudflare upload failed HTTP ${cfRes.code()}: ${cfRes.errorBody()?.string()}")
+                    }
+
+                    // Exponential backoff retry loop (up to 3 attempts per chunk) for main Render backend
+                    var uploadSuccess = false
+                    var attempt = 0
+                    while (!uploadSuccess && attempt < 3) {
+                        attempt++
+                        try {
+                            val renderRes = RetrofitClient.renderInstance.sendSensorDataBatch(batch)
+                            if (renderRes.isSuccessful) {
+                                uploadSuccess = true
+                            } else {
+                                Log.w(TAG, "Chunk $index attempt $attempt failed (HTTP ${renderRes.code()}), retrying...")
+                                delay(1000L * attempt)
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Chunk $index attempt $attempt network error: ${e.message}, retrying...")
+                            delay(1000L * attempt)
                         }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Batch upload failed: ${e.message}", e)
                     }
                 }
             } finally {
